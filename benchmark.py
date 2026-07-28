@@ -29,6 +29,10 @@ from model import GPT, START_MARK, USER_MARK, BOT_MARK, END_MARK, encode, decode
 from export import import_compressed
 import versions
 
+# Fixed, and deliberately not derived from --seed: the arithmetic score has to be
+# comparable between models and between runs.
+ARITH_SEED = 20260728
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -129,14 +133,20 @@ def bench_generation(model, stoi, itos, config, device, prompts, train_text, wor
     }
 
 
-def bench_arithmetic(model, stoi, itos, config, device, rng, trials=15):
+def bench_arithmetic(model, stoi, itos, config, device, seed, trials=25):
     """Accuracy on sums the model has never seen, by operand size.
 
     Scored on the last number in the reply, which is where every method in
     arith.py puts its answer. Working arithmetic is a copying task before it is a
     counting one - the operands have to be read out of the context first - so this
     stays at zero until the copying circuit forms, long after the loss curve
-    flattens."""
+    flattens.
+
+    The sums come from a private generator seeded here, so every model is asked the
+    same questions no matter what else the run measures. Sharing the caller's
+    generator made the score move with --gen_samples, which made two runs of the
+    same file disagree by nine points."""
+    rng = random.Random(seed)
     rows = []
     for label, lo, hi in (("1 digit", 1, 9), ("2 digit", 10, 99), ("3 digit", 100, 999)):
         for op in "+-*":
@@ -237,8 +247,12 @@ def main():
           f"mean copied prefix {g['mean_copied_prefix']:.0f} chars\n")
 
     # ---- arithmetic
+    # Both generators, not just the operands: sampling a reply consumes torch's
+    # generator, so measuring more prompts first would otherwise change the answers.
+    torch.manual_seed(ARITH_SEED)
     print("ARITHMETIC  (unseen sums, scored on the final number)")
-    rows = bench_arithmetic(model, stoi, itos, config, device, rng)
+    print("  the same sums for every model, whatever else this run measures")
+    rows = bench_arithmetic(model, stoi, itos, config, device, ARITH_SEED)
     for label, score in rows:
         print(f"  {label:12} {bar(score)} {score:.0%}")
     print(f"  overall            {sum(s for _, s in rows) / len(rows):.0%}\n")

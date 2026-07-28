@@ -229,13 +229,18 @@ All three trained the same way on the same 2M characters:
 | generalization gap | **+0.10** | +0.69 | +0.89 |
 | novelty (not recited) | **83%** | 74% | 53% |
 | verbatim copies | **12%**, 21 chars | 8%, 31 chars | 32%, 61 chars |
-| arithmetic overall | **31%** | 19% | 30% |
+| arithmetic overall | 29% | 25% | **32%** |
 
-Large recites almost a third of its replies out of `training.txt`, 61 characters at a
-stretch, and still does not beat a model a seventh its size at arithmetic. The cause
-is data, not architecture: 2M characters over 2.7M parameters is under one character
-per parameter, where small sits at 5.2. The lever for a better model is
-`--target_chars` and more hand-written conversations, not a bigger preset.
+Large is 3 points better at arithmetic and twice as bad at everything else: it
+recites almost a third of its replies out of `training.txt`, 61 characters at a
+stretch, for seven times the download. The cause is data, not architecture: 2M
+characters over 2.7M parameters is under one character per parameter, where small
+sits at 5.2. The lever for a better model is `--target_chars` and more hand-written
+conversations, not a bigger preset.
+
+Arithmetic is scored on 25 sums per operand size and operator - 225 generations - so
+treat a few points as noise. The sums and the sampling are both seeded fixed, so the
+score is comparable between models and between runs, but it is still a sample.
 
 ## The browser page
 
