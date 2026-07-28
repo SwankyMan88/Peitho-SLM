@@ -48,10 +48,6 @@ py make_corpus.py
 py train.py --preset small --block_size 384 --fresh --dropout 0.0 --steps 30000 --select_by train
 ```
 
-```bash
-py make_manifest.py
-```
-
 Then serve the folder and open `peitho.html`:
 
 ```bash
@@ -80,8 +76,7 @@ py test_slm.py       # corpus -> training -> export -> inference, about a minute
 | `compose.py` | Generates varied English from word pools and clause shapes — most of the corpus. |
 | `arith.py` | Generates worked arithmetic. Every sum is solved correctly here. |
 | `versions.py` | Names and finds exports in `models/`. |
-| `peitho.html` | The browser page. Carries no weights: it reads `models/index.json` and offers everything in the folder. |
-| `make_manifest.py` | Writes `models/index.json`, which is how the page knows what is in the folder. |
+| `peitho.html` | The browser page. Carries no weights: it finds the exports in `models/` itself and offers each one. |
 | `make_html.py` | Bakes an export *into* a page that cannot fetch, for sandboxes with no networking. |
 | `test_slm.py` | End-to-end check of the whole pipeline. |
 | `speed_test.py` | Training throughput, so speed changes can be measured instead of guessed. |
@@ -225,14 +220,20 @@ py standalone.py                                             # most recent of an
 ## The browser page
 
 `peitho.html` runs the model in the browser at roughly 500–2000 characters/sec. It
-holds no weights of its own: on load it reads `models/index.json`, offers every
-export in the folder as a button, and opens the smallest `small_*` it finds. Adding
-a model means training it and re-running `py make_manifest.py` — the page needs no
-edit and no rebuild.
+holds no weights of its own: on load it asks the folder for every plausible export
+name at once — `small_1.0.txt` through `large_2.9.txt` — offers whatever answers as a
+button, and opens the smallest `small_*` it finds. Training a model is enough to make
+it appear; there is nothing to regenerate and nothing to edit.
 
-Because it fetches, **it needs to be served** — `py -m http.server`, GitHub Pages,
-anything. Opened straight off the disk, `fetch` refuses `file://` and the page says
-so instead of failing silently.
+It probes rather than walking a series, because a folder holding only `small_1.2` is
+perfectly normal and anything that stopped at the first gap would miss it. Nested
+versions (`small_1.2.1`) are not probed — rename one to a plain `<major>.<minor>` to
+have it offered.
+
+Because it fetches, **it must be served** — `py -m http.server`, GitHub Pages,
+anything. Opened straight off the disk it cannot read the files beside it at all:
+`fetch` refuses `file://` for siblings, which is a browser rule and not something the
+page can work around. It says so plainly rather than looking broken.
 
 ### For somewhere that cannot fetch at all
 
@@ -310,7 +311,7 @@ Edit `conversations.txt` — strict `▶…■` / `◀…■`, one turn per line
 conversations — then rebuild and retrain:
 
 ```bash
-py make_corpus.py && py train.py --preset small --block_size 384 --fresh --dropout 0.0 --steps 30000 --select_by train && py make_manifest.py
+py make_corpus.py && py train.py --preset small --block_size 384 --fresh --dropout 0.0 --steps 30000 --select_by train
 ```
 
 `make_corpus.py` prints the mix and warns when it is lopsided. The two dials that

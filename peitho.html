@@ -707,12 +707,16 @@ class Peitho {
 /* Every model is read from the models/ folder beside this page, so the page
    itself carries no weights and never has to be rebuilt when one changes.
 
-   HTTP cannot list a directory, so models/index.json says what is in there and
-   make_manifest.py writes it. That also means this page needs a server: opened
-   straight off the disk there is nothing to ask, and fetch refuses file://. */
+   HTTP cannot list a directory and there is no index file to keep in step, so the
+   names are worked out here instead: exports are called <base>_<major>.<minor>.txt,
+   which is few enough shapes to just ask for. Asking needs a server - fetch
+   refuses file:// for any sibling file - so opened straight off the disk the page
+   says that rather than appearing broken. */
 const FOLDER = "models/";
-const MANIFEST = FOLDER + "index.json";
+const BASES = ["tiny", "small", "medium", "large"];
 const START_WITH = "small";   /* whichever base name to open with, if it is there */
+const MAJORS = 2;             /* how many major versions of each base to look for */
+const MINORS = 10;            /* and how many minor versions of each of those */
 const downloaded = {};
 let choices = [];
 let current = null;
@@ -893,11 +897,6 @@ function shortName(file) {
     return match[1].charAt(0).toUpperCase() + match[1].slice(1) + " " + match[2];
 }
 
-function round(params) {
-    return params >= 1e6 ? (params / 1e6).toFixed(1) + "M"
-                         : Math.round(params / 1000) + "K";
-}
-
 function describe(choice) {
     showFacts([
         ["model", choice.label],
@@ -929,7 +928,7 @@ async function use(choice) {
     el("send").disabled = true;
     try {
         if (!downloaded[choice.key]) {
-            say("Loading " + choice.file + " (" + choice.size + " weights)...");
+            say("Loading " + choice.file + " (" + choice.size + ")...");
             const response = await fetch(FOLDER + choice.file);
             if (!response.ok) {
                 throw new Error("the server answered " + response.status);
@@ -978,49 +977,78 @@ function cannotLoad(reason) {
     say(reason, true);
 }
 
-/* Read the folder, offer everything in it, and open the smallest of the
-   preferred base name - the quickest to fetch and unpack. */
+/* Is it there, and how big? Headers only, so looking costs nothing. */
+async function weigh(file) {
+    try {
+        const response = await fetch(FOLDER + file, { method: "HEAD" });
+        if (!response.ok) {
+            return null;
+        }
+        return Number(response.headers.get("content-length")) || 0;
+    } catch (e) {
+        return null;
+    }
+}
+
+/* Ask for every plausible name at once rather than walking a series until it
+   seems to end. Versions get deleted - a folder holding only small_1.2 is normal -
+   and anything that stops at the first gap would miss what comes after it. */
+function names() {
+    const all = [];
+    for (const base of BASES) {
+        for (let major = 1; major <= MAJORS; major++) {
+            for (let minor = 0; minor < MINORS; minor++) {
+                all.push(base + "_" + major + "." + minor + ".txt");
+            }
+        }
+    }
+    return all;
+}
+
+/* Offer everything found, and open the smallest of the preferred base name - the
+   quickest to fetch and unpack. */
 async function findModels() {
     if (typeof fetch !== "function") {
-        cannotLoad("This page loads its model from the models folder, and there is no "
-                   + "way to fetch it here.");
+        cannotLoad("This page reads its model from the " + FOLDER + " folder, and nothing "
+                   + "here can fetch a file.");
         return;
     }
-    let listing;
-    try {
-        const response = await fetch(MANIFEST);
-        if (!response.ok) {
-            throw new Error("the server answered " + response.status);
-        }
-        listing = await response.json();
-    } catch (e) {
-        console.error(e);
-        cannotLoad("Could not read " + MANIFEST + " (" + e.message + "). This page has to "
-                   + "be served over HTTP rather than opened from the disk, and "
-                   + "py make_manifest.py has to have been run.");
+    if (location.protocol === "file:") {
+        cannotLoad("Opened from the disk, a page is not allowed to read the files next to "
+                   + "it, so the " + FOLDER + " folder is out of reach. Serve this folder "
+                   + "instead - py -m http.server, then open localhost:8000/peitho.html.");
         return;
     }
 
-    const models = listing.models || [];
-    if (!models.length) {
-        cannotLoad("No models in " + FOLDER + ". Train one, then run py make_manifest.py.");
+    const candidates = names();
+    const sizes = await Promise.all(candidates.map(weigh));
+    const found = [];
+    for (let i = 0; i < candidates.length; i++) {
+        if (sizes[i] !== null) {
+            found.push({ file: candidates[i], bytes: sizes[i] });
+        }
+    }
+    if (!found.length) {
+        cannotLoad("No exports found in " + FOLDER + ". Train one - it lands there as "
+                   + "small_1.0.txt and onwards.");
         return;
     }
-    for (const entry of models) {
+
+    found.sort((a, b) => a.bytes - b.bytes);
+    for (const entry of found) {
         addChoice({
             key: entry.file.replace(/[^A-Za-z0-9]/g, "_"),
             label: shortName(entry.file),
-            size: round(entry.params),
+            size: Math.round(entry.bytes / 1024) + " KB",
             file: entry.file,
-            params: entry.params
+            bytes: entry.bytes
         });
     }
     paintPicker();
 
     const preferred = choices.filter(c => c.file.startsWith(START_WITH + "_"));
     const pool = preferred.length ? preferred : choices;
-    const smallest = pool.reduce((a, b) => (a.params <= b.params ? a : b));
-    await use(smallest);
+    await use(pool[0]);   /* already smallest first */
 }
 
 function showFacts(rows) {

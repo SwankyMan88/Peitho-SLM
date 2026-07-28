@@ -7,7 +7,6 @@ anything - it tests that the pieces still fit together, which is what breaks.
     py test_slm.py
 """
 
-import json
 import os
 import random
 import shutil
@@ -140,15 +139,6 @@ def test_pipeline():
                         "--max_new", "20")
         check("standalone.py runs without torch or numpy", code == 0, out[-400:])
         check("standalone.py produced a reply", "Bot:" in out, out[-200:])
-
-        code, out = run("make_manifest.py", "--models_dir", work,
-                        "--out", os.path.join(work, "index.json"))
-        check("make_manifest runs", code == 0, out[-300:])
-        with open(os.path.join(work, "index.json"), encoding="utf-8") as f:
-            listing = json.load(f)
-        entry = listing["models"][0]
-        check("manifest lists the export", entry["file"] == "test_1.0.txt", str(entry))
-        check("manifest counts parameters", entry["params"] > 0, str(entry))
 
         # peitho.html itself has no MODEL block - it fetches models/ - so baking is
         # checked against a stub standing in for a page that cannot fetch.

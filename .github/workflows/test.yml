@@ -28,6 +28,21 @@ jobs:
       - name: Corpus, training, export, pure-Python inference
         run: python test_slm.py
 
+      - name: The page names it probes for still match the export naming
+        run: |
+          python - <<'EOF'
+          import re, versions
+          html = open("peitho.html", encoding="utf-8").read()
+          bases = re.search(r"const BASES = \[(.*?)\]", html).group(1)
+          for base, version in versions.existing():
+              assert f'"{base}"' in bases, f"peitho.html never asks for {base}_* models"
+              major, minor = version[0], version[1] if len(version) > 1 else 0
+              majors = int(re.search(r"const MAJORS = (\d+)", html).group(1))
+              minors = int(re.search(r"const MINORS = (\d+)", html).group(1))
+              assert major <= majors and minor < minors,                   f"{base}_{versions.format_version(version)} is outside the range the page probes"
+              print(f"  peitho.html would find {base}_{versions.format_version(version)}")
+          EOF
+
       - name: Exports still load and still fit the size budget
         run: |
           python - <<'EOF'
