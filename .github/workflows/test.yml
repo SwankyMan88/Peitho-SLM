@@ -1,0 +1,41 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # CPU wheels only. The suite trains a tiny model for 20 steps, so the CUDA
+      # build would add a gigabyte of download for nothing.
+      - name: Install
+        run: |
+          pip install --upgrade pip
+          pip install numpy
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Corpus, training, export, pure-Python inference
+        run: python test_slm.py
+
+      - name: Exports still load and still fit the size budget
+        run: |
+          python - <<'EOF'
+          import os, versions
+          from export import import_compressed
+          path = versions.resolve(None)
+          model, config, stoi, itos = import_compressed(path, device="cpu")
+          size = os.path.getsize(path)
+          print(f"{path}: {size:,} bytes, {sum(p.numel() for p in model.parameters()):,} params")
+          assert size < 520_000, f"{path} is {size:,} bytes; the browser target allows ~509 KB"
+          EOF

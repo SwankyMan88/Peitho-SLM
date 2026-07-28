@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Peitho</title>
+        <style>
+            :root {
+                --bg: rgb(15, 17, 22);
+                --glow: rgb(28, 32, 44);
+                --panel: rgb(23, 26, 34);
+                --edge: rgb(41, 46, 58);
+                --ink: rgb(232, 234, 240);
+                --dim: rgb(136, 143, 160);
+                --accent: rgb(214, 172, 110);
+                --mine: rgb(43, 50, 68);
+                --shadow: rgba(0, 0, 0, 0.35);
+            }
+            @media (prefers-color-scheme: light) {
+                :root {
+                    --bg: rgb(249, 247, 243);
+                    --glow: rgb(255, 255, 255);
+                    --panel: rgb(255, 255, 255);
+                    --edge: rgb(228, 222, 212);
+                    --ink: rgb(30, 32, 38);
+                    --dim: rgb(112, 116, 128);
+                    --accent: rgb(163, 110, 56);
+                    --mine: rgb(240, 236, 228);
+                    --shadow: rgba(60, 50, 40, 0.09);
+                }
+            }
+            * {
+                box-sizing: border-box;
+            }
+            html {
+                height: 100%;
+            }
+            body {
+                margin: 0;
+                padding: 28px 20px 24px;
+                background: radial-gradient(1100px 520px at 50% -140px, var(--glow), var(--bg) 70%);
+                background-color: var(--bg);
+                color: var(--ink);
+                font: 15px/1.6 ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+                height: 100dvh;
+                overflow: hidden;
+                display: flex;
+                justify-content: center;
+            }
+            /* The page itself never scrolls; the log is the only scrollable region,
+               so a long conversation cannot push the composer off screen. */
+            .wrap {
+                width: 100%;
+                max-width: 720px;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                min-height: 0;
+            }
+            header {
+                flex: none;
+                text-align: center;
+                overflow: hidden;
+                transition: opacity 420ms ease, filter 420ms ease,
+                            max-height 420ms ease, margin-bottom 420ms ease;
+                max-height: 90px;
+                margin-bottom: 18px;
+            }
+            /* Once the log has more than a screenful, the wordmark blurs away and
+               gives its space to the conversation. */
+            header.receded {
+                opacity: 0;
+                filter: blur(6px);
+                max-height: 0;
+                margin-bottom: 0;
+                pointer-events: none;
+            }
+            h1 {
+                font-family: Georgia, "Iowan Old Style", serif;
+                font-size: 2.1rem;
+                font-weight: 400;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                margin: 0;
+            }
+            /* The log holds the only scrollbar on the page, and it is drawn by
+               hand: a native one cannot be animated between two widths. */
+            .reader {
+                position: relative;
+                flex: 1;
+                min-height: 0;
+                display: flex;
+            }
+            #log {
+                flex: 1;
+                min-height: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                overflow-y: auto;
+                overscroll-behavior: contain;
+                padding: 4px 14px 8px 2px;
+                scrollbar-width: none;
+            }
+            #log::-webkit-scrollbar {
+                width: 0;
+                height: 0;
+            }
+            .rail {
+                position: absolute;
+                top: 4px;
+                right: 0;
+                bottom: 8px;
+                width: 12px;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 300ms ease;
+            }
+            .rail.shown {
+                opacity: 1;
+                pointer-events: auto;
+            }
+            .thumb {
+                position: absolute;
+                right: 5px;
+                width: 2px;
+                min-height: 28px;
+                border-radius: 999px;
+                background: var(--edge);
+                transition: width 260ms ease, right 260ms ease, background-color 260ms ease;
+            }
+            .rail.awake .thumb,
+            .rail:hover .thumb {
+                width: 8px;
+                right: 2px;
+                background: var(--dim);
+            }
+            .empty {
+                color: var(--dim);
+                text-align: center;
+                margin: auto;
+                font-size: 0.9rem;
+            }
+            .turn {
+                max-width: 78%;
+                padding: 10px 14px;
+                border-radius: 16px;
+                box-shadow: 0 1px 3px var(--shadow);
+            }
+            .turn.mine {
+                align-self: flex-end;
+                background: var(--mine);
+                border-bottom-right-radius: 5px;
+            }
+            .turn.theirs {
+                align-self: flex-start;
+                background: var(--panel);
+                border: 1px solid var(--edge);
+                border-bottom-left-radius: 5px;
+            }
+            .who {
+                display: block;
+                font-size: 0.66rem;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: var(--dim);
+                margin-bottom: 3px;
+            }
+            .body {
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+            .streaming .body::after {
+                content: "";
+                display: inline-block;
+                width: 0.5em;
+                height: 1em;
+                margin-left: 2px;
+                vertical-align: text-bottom;
+                background: var(--accent);
+                animation: blink 1.1s steps(1) infinite;
+            }
+            @keyframes blink {
+                0%, 49% { opacity: 1; }
+                50%, 100% { opacity: 0; }
+            }
+            .composer {
+                flex: none;
+                margin-top: 16px;
+                background: var(--panel);
+                border: 1px solid var(--edge);
+                border-radius: 16px;
+                padding: 14px;
+                box-shadow: 0 2px 10px var(--shadow);
+            }
+            .row {
+                display: flex;
+                gap: 10px;
+            }
+            input[type=text] {
+                flex: 1;
+                min-width: 0;
+                background: transparent;
+                color: var(--ink);
+                border: 1px solid var(--edge);
+                border-radius: 11px;
+                padding: 11px 13px;
+                font: inherit;
+            }
+            input[type=text]:focus {
+                outline: none;
+                border-color: var(--accent);
+            }
+            button {
+                border: 0;
+                border-radius: 11px;
+                padding: 11px 20px;
+                font: inherit;
+                font-weight: 600;
+                letter-spacing: 0.02em;
+                cursor: pointer;
+                background: var(--accent);
+                color: rgb(22, 20, 16);
+            }
+            button:disabled {
+                opacity: 0.4;
+                cursor: default;
+            }
+            button.quiet {
+                background: transparent;
+                color: var(--dim);
+                border: 1px solid var(--edge);
+                font-weight: 400;
+            }
+            button.icon {
+                background: transparent;
+                color: var(--dim);
+                border: 1px solid var(--edge);
+                padding: 11px 14px;
+                font-size: 1rem;
+                line-height: 1;
+            }
+            .panel {
+                position: relative;
+            }
+            .settings {
+                position: absolute;
+                right: 0;
+                bottom: calc(100% + 10px);
+                width: min(320px, calc(100vw - 56px));
+                background: var(--panel);
+                border: 1px solid var(--edge);
+                border-radius: 14px;
+                padding: 14px 16px;
+                box-shadow: 0 8px 26px var(--shadow);
+                z-index: 5;
+                transition: opacity 160ms ease, transform 160ms ease;
+            }
+            .settings[hidden] {
+                display: block;
+                opacity: 0;
+                transform: translateY(6px);
+                pointer-events: none;
+            }
+            .settings h2 {
+                font-size: 0.7rem;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: var(--dim);
+                font-weight: 400;
+                margin: 0 0 10px;
+            }
+            .tune label {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                justify-content: space-between;
+                font-size: 0.82rem;
+                color: var(--dim);
+                margin-bottom: 10px;
+            }
+            .tune output {
+                color: var(--ink);
+                font-variant-numeric: tabular-nums;
+                min-width: 2.4em;
+                text-align: right;
+            }
+            input[type=range] {
+                width: 130px;
+                accent-color: var(--accent);
+            }
+            .facts {
+                border-top: 1px solid var(--edge);
+                padding-top: 10px;
+                color: var(--dim);
+                font-size: 0.76rem;
+                line-height: 1.7;
+            }
+            .facts div {
+                display: flex;
+                justify-content: space-between;
+                gap: 12px;
+            }
+            .facts span:last-child {
+                color: var(--ink);
+                font-variant-numeric: tabular-nums;
+            }
+            .stats {
+                margin-top: 10px;
+                color: var(--dim);
+                font-size: 0.76rem;
+                font-variant-numeric: tabular-nums;
+                min-height: 1.2em;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <header id="header">
+                <h1>Peitho</h1>
+            </header>
+
+            <div class="reader" id="reader">
+                <div id="log"><div class="empty" id="empty">Say something to begin.</div></div>
+                <div class="rail" id="rail"><div class="thumb" id="thumb"></div></div>
+            </div>
+
+            <div class="composer panel">
+                <div class="settings" id="settings" hidden>
+                    <h2>Settings</h2>
+                    <div class="tune">
+                        <label>Temperature
+                            <input type="range" id="temp" min="0.1" max="1.5" step="0.05" value="0.7">
+                            <output id="tempv">0.70</output>
+                        </label>
+                        <label>Top-k
+                            <input type="range" id="topk" min="1" max="60" step="1" value="40">
+                            <output id="topkv">40</output>
+                        </label>
+                    </div>
+                    <div class="facts" id="facts"></div>
+                    <div class="stats" id="stats"></div>
+                </div>
+                <div class="row">
+                    <input type="text" id="msg" placeholder="Say something…" autocomplete="off">
+                    <button id="send">Send</button>
+                    <button id="gear" class="icon" title="Settings" aria-label="Settings">&#9881;</button>
+                    <button id="clear" class="quiet">Clear</button>
+                </div>
+            </div>
+        </div>
+
+<script>
+"use strict";
+
+/* The model lives here. model_compressed.txt is three lines:
+     line 1 (JSON header) -> after `header:`, with NO quotes; JSON is already a
+            valid JS object literal, and the header contains an apostrophe.
+     lines 2 and 3        -> between the SINGLE quotes. Not backticks: the base85
+            alphabet contains ` and $. It has no ' " or \, so single quotes are safe.
+   Run `py make_html.py` to fill this in. */
+var MODEL = {
+    header:  null,
+    weights: '',
+    scales:  ''
+};
+
+const START = "◈", USER = "▶", BOT = "◀", END = "■";
+
+const B85 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" +
+            "!#$%&()*+-;<=>?@^_`{|}~";
+const B85REV = new Int16Array(256).fill(-1);
+for (let i = 0; i < B85.length; i++) {
+    B85REV[B85.charCodeAt(i)] = i;
+}
+
+function dec85(text) {
+    const s = text.replace(/\s+/g, "");
+    const out = new Uint8Array(Math.floor(s.length * 4 / 5) + 4);
+    let o = 0;
+    for (let p = 0; p < s.length; p += 5) {
+        const take = Math.min(5, s.length - p);
+        let v = 0;
+        for (let i = 0; i < 5; i++) {
+            const c = i < take ? B85REV[s.charCodeAt(p + i)] : 84;
+            if (c < 0) {
+                throw new Error("bad base85 character at " + (p + i));
+            }
+            v = v * 85 + c;
+        }
+        // v reaches 85^5, past 2^32, so extract bytes by division not shifts.
+        const b = [Math.floor(v / 16777216) % 256, Math.floor(v / 65536) % 256,
+                   Math.floor(v / 256) % 256, v % 256];
+        for (let k = 0; k < take - 1; k++) {
+            out[o++] = b[k];
+        }
+    }
+    return out.subarray(0, o);
+}
+
+function fp16(lo, hi) {
+    const bits = lo | (hi << 8);
+    const sign = (bits >> 15) ? -1 : 1;
+    const exp = (bits >> 10) & 0x1f;
+    const frac = bits & 0x3ff;
+    if (exp === 0) {
+        return sign * frac * Math.pow(2, -24);
+    }
+    if (exp === 31) {
+        return sign * Infinity;
+    }
+    return sign * (1024 + frac) * Math.pow(2, exp - 25);
+}
+
+function layernorm(x, w, b, out) {
+    const n = x.length;
+    let mean = 0;
+    for (let i = 0; i < n; i++) {
+        mean += x[i];
+    }
+    mean /= n;
+    let varsum = 0;
+    for (let i = 0; i < n; i++) {
+        const d = x[i] - mean;
+        varsum += d * d;
+    }
+    const inv = 1 / Math.sqrt(varsum / n + 1e-5);
+    for (let i = 0; i < n; i++) {
+        out[i] = (x[i] - mean) * inv * w[i] + b[i];
+    }
+    return out;
+}
+
+function matvec(out, W, x, nOut, nIn, bias) {
+    for (let o = 0; o < nOut; o++) {
+        const base = o * nIn;
+        let acc = bias ? bias[o] : 0;
+        for (let i = 0; i < nIn; i++) {
+            acc += W[base + i] * x[i];
+        }
+        out[o] = acc;
+    }
+    return out;
+}
+
+// Abramowitz & Stegun 7.1.26, max error 1.5e-7, to match PyTorch's exact gelu.
+function erf(x) {
+    const sign = x < 0 ? -1 : 1;
+    x = Math.abs(x);
+    const t = 1 / (1 + 0.3275911 * x);
+    const poly = ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t
+                 - 0.284496736) * t + 0.254829592) * t;
+    return sign * (1 - poly * Math.exp(-x * x));
+}
+
+function gelu(v) {
+    return 0.5 * v * (1 + erf(v / Math.SQRT2));
+}
+
+function softmax(a, n) {
+    let m = -Infinity;
+    for (let i = 0; i < n; i++) {
+        if (a[i] > m) {
+            m = a[i];
+        }
+    }
+    let sum = 0;
+    for (let i = 0; i < n; i++) {
+        a[i] = Math.exp(a[i] - m);
+        sum += a[i];
+    }
+    for (let i = 0; i < n; i++) {
+        a[i] /= sum;
+    }
+    return a;
+}
+
+class Peitho {
+    constructor(src) {
+        const head = typeof src.header === "string" ? JSON.parse(src.header) : src.header;
+        const wBytes = dec85(src.weights);
+        const sBytes = dec85(src.scales);
+        if (head.bits !== 4 && head.bits !== 8) {
+            throw new Error("bits must be 4 or 8");
+        }
+
+        const cfg = head.config;
+        this.C = cfg.n_embd;
+        this.H = cfg.n_head;
+        this.D = cfg.n_embd / cfg.n_head;
+        this.nLayer = cfg.n_layer;
+        this.block = cfg.block_size;
+        this.vocabSize = cfg.vocab_size;
+        this.bits = head.bits;
+        this.vocab = head.vocab;
+        this.stoi = {};
+        for (let i = 0; i < this.vocab.length; i++) {
+            this.stoi[this.vocab[i]] = i;
+        }
+
+        const scales = new Float32Array(sBytes.length >> 1);
+        for (let i = 0; i < scales.length; i++) {
+            scales[i] = fp16(sBytes[2 * i], sBytes[2 * i + 1]);
+        }
+
+        // Each weight is a small integer times the scale of its group of `group`
+        // consecutive weights. Groups never straddle tensors, hence the padding.
+        const group = head.group;
+        this.T = {};
+        this.nParams = 0;
+        let at = 0, sAt = 0;
+        for (const meta of head.tensors) {
+            let numel = 1;
+            for (const dim of meta.s) {
+                numel *= dim;
+            }
+            const arr = new Float32Array(numel);
+            for (let i = 0; i < numel; i++) {
+                const idx = at + i;
+                let q;
+                if (this.bits === 8) {
+                    q = wBytes[idx];
+                    if (q > 127) {
+                        q -= 256;
+                    }
+                } else {
+                    const byte = wBytes[idx >> 1];
+                    q = (idx & 1) ? (byte >> 4) : (byte & 15);
+                    if (q > 7) {
+                        q -= 16;
+                    }
+                }
+                arr[i] = q * scales[sAt + ((i / group) | 0)];
+            }
+            this.T[meta.n] = arr;
+            this.nParams += numel;
+            const padded = numel + ((group - (numel % group)) % group);
+            at += padded;
+            sAt += padded / group;
+        }
+        this.reset();
+    }
+
+    reset() {
+        this.cache = [];
+        for (let i = 0; i < this.nLayer; i++) {
+            this.cache.push({ k: [], v: [] });
+        }
+        this.pos = 0;
+        const C = this.C;
+        this.buf = {
+            x: new Float32Array(C),
+            h: new Float32Array(C),
+            qkv: new Float32Array(3 * C),
+            attn: new Float32Array(C),
+            proj: new Float32Array(C),
+            hid: new Float32Array(4 * C),
+            down: new Float32Array(C),
+            xf: new Float32Array(C),
+            logits: new Float32Array(this.vocabSize)
+        };
+    }
+
+    step(id) {
+        const T = this.T, C = this.C, H = this.H, D = this.D, buf = this.buf;
+        const tok = T["tok_emb.weight"], posE = T["pos_emb.weight"];
+        const x = buf.x;
+        const pos = Math.min(this.pos, this.block - 1);
+        for (let i = 0; i < C; i++) {
+            x[i] = tok[id * C + i] + posE[pos * C + i];
+        }
+
+        for (let L = 0; L < this.nLayer; L++) {
+            const p = "blocks." + L + ".";
+            layernorm(x, T[p + "ln1.weight"], T[p + "ln1.bias"], buf.h);
+            const qkv = matvec(buf.qkv, T[p + "attn.qkv.weight"], buf.h,
+                               3 * C, C, T[p + "attn.qkv.bias"]);
+
+            const cache = this.cache[L];
+            cache.k.push(qkv.slice(C, 2 * C));
+            cache.v.push(qkv.slice(2 * C, 3 * C));
+            if (cache.k.length > this.block) {
+                cache.k.shift();
+                cache.v.shift();
+            }
+
+            const n = cache.k.length;
+            const scores = new Float32Array(n);
+            const scale = 1 / Math.sqrt(D);
+            buf.attn.fill(0);
+            for (let hd = 0; hd < H; hd++) {
+                const off = hd * D;
+                for (let j = 0; j < n; j++) {
+                    const kv = cache.k[j];
+                    let acc = 0;
+                    for (let d = 0; d < D; d++) {
+                        acc += qkv[off + d] * kv[off + d];
+                    }
+                    scores[j] = acc * scale;
+                }
+                softmax(scores, n);
+                for (let j = 0; j < n; j++) {
+                    const w = scores[j];
+                    const vv = cache.v[j];
+                    for (let d = 0; d < D; d++) {
+                        buf.attn[off + d] += w * vv[off + d];
+                    }
+                }
+            }
+            matvec(buf.proj, T[p + "attn.proj.weight"], buf.attn, C, C,
+                   T[p + "attn.proj.bias"]);
+            for (let i = 0; i < C; i++) {
+                x[i] += buf.proj[i];
+            }
+
+            layernorm(x, T[p + "ln2.weight"], T[p + "ln2.bias"], buf.h);
+            matvec(buf.hid, T[p + "mlp.fc.weight"], buf.h, 4 * C, C, T[p + "mlp.fc.bias"]);
+            for (let i = 0; i < 4 * C; i++) {
+                buf.hid[i] = gelu(buf.hid[i]);
+            }
+            matvec(buf.down, T[p + "mlp.proj.weight"], buf.hid, C, 4 * C,
+                   T[p + "mlp.proj.bias"]);
+            for (let i = 0; i < C; i++) {
+                x[i] += buf.down[i];
+            }
+        }
+        layernorm(x, T["ln_f.weight"], T["ln_f.bias"], buf.xf);
+        // The output head shares the token embedding matrix.
+        return matvec(buf.logits, tok, buf.xf, this.vocabSize, C, null);
+    }
+
+    feed(text) {
+        let logits = null;
+        for (const ch of text) {
+            const id = this.stoi[ch];
+            if (id === undefined) {
+                continue;
+            }
+            logits = this.step(id);
+            this.pos++;
+        }
+        return logits;
+    }
+
+    sample(logits, temp, topK) {
+        const n = logits.length;
+        const a = new Float32Array(n);
+        const t = Math.max(temp, 1e-6);
+        for (let i = 0; i < n; i++) {
+            a[i] = logits[i] / t;
+        }
+        if (topK && topK < n) {
+            const cut = Array.from(a).sort((x, y) => y - x)[topK - 1];
+            for (let i = 0; i < n; i++) {
+                if (a[i] < cut) {
+                    a[i] = -1e30;
+                }
+            }
+        }
+        softmax(a, n);
+        const r = Math.random();
+        let acc = 0;
+        for (let i = 0; i < n; i++) {
+            acc += a[i];
+            if (r <= acc) {
+                return i;
+            }
+        }
+        return n - 1;
+    }
+}
+
+let model = null;
+let busy = false;
+let log = null;
+// Named chatTurns, not history: window.history is a getter-only accessor, so
+// assigning a global `history` throws TypeError under strict mode.
+let chatTurns = [];
+
+function el(id) {
+    return document.getElementById(id);
+}
+
+function buildPrompt(text, block) {
+    const current = USER + text + END + "\n" + BOT;
+    const kept = [];
+    // Four turns, because the hand-written conversations are mostly two to four
+    // turns long. Feeding a longer history than anything in training pushes the
+    // context off-distribution and the reply degrades partway through.
+    const WINDOW = 4;
+    let dropped = chatTurns.length > WINDOW;
+    for (let i = chatTurns.length - 1; i >= 0 && chatTurns.length - i <= WINDOW; i--) {
+        const t = chatTurns[i];
+        const line = (t.role === "user" ? USER : BOT) + t.text + END;
+        if ([line, ...kept, current].join("\n").length > block) {
+            dropped = true;   // drop whole turns; a prompt starting mid-word is off-distribution
+            break;
+        }
+        kept.unshift(line);
+    }
+    // START only when the opening of the conversation is still in view.
+    const head = dropped ? [] : [START];
+    return [...head, ...kept, current].join("\n").slice(-block);
+}
+
+function addTurn(mine, text) {
+    const empty = el("empty");
+    if (empty) {
+        empty.remove();
+    }
+    const div = document.createElement("div");
+    div.className = "turn " + (mine ? "mine" : "theirs");
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = mine ? "you" : "peitho";
+    const body = document.createElement("span");
+    body.className = "body";
+    body.textContent = text;
+    div.append(who, body);
+    log.append(div);
+    log.scrollTop = log.scrollHeight;
+    layout();
+    return { div, body };
+}
+
+function finish(text, userText, bubble, started) {
+    const ms = performance.now() - started;
+    bubble.div.classList.remove("streaming");
+    el("stats").textContent = text.length + " chars · " +
+        (text.length / (ms / 1000)).toFixed(0) + " chars/sec";
+    if (!text.trim()) {
+        text = "(no reply)";
+        bubble.body.textContent = text;
+    }
+    chatTurns.push({ role: "user", text: userText }, { role: "bot", text: text.trim() });
+    busy = false;
+    el("send").disabled = false;
+}
+
+function looping(text) {
+    const tail = text.slice(-42);
+    for (let n = 2; n <= 14; n++) {
+        const unit = tail.slice(-n);
+        if (unit.trim().length > 1 && tail.endsWith(unit.repeat(3))) {
+            return true;
+        }
+    }
+    // A stuttered word ("helps helps", "to to") is the same failure earlier on.
+    return /\b(\w{1,12})\s+\1\b/.test(tail);
+}
+
+function reply(userText) {
+    if (!model || busy) {
+        return;
+    }
+
+    busy = true;
+    el("send").disabled = true;
+
+    let bubble, logits, started;
+    try {
+        addTurn(true, userText);
+        bubble = addTurn(false, "");
+        bubble.div.classList.add("streaming");
+        const prompt = buildPrompt(userText, model.block);
+        model.reset();
+        logits = model.feed(prompt);
+        started = performance.now();
+    } catch (e) {
+        console.error(e);
+        if (bubble) {
+            bubble.div.classList.remove("streaming");
+            bubble.body.textContent = "error: " + e.message;
+        }
+        busy = false;
+        el("send").disabled = false;
+        return;
+    }
+
+    const temp = parseFloat(el("temp").value);
+    const topK = parseInt(el("topk").value, 10);
+    const LIMIT = 300;
+    let text = "";
+    let n = 0;
+
+    function tick() {
+        // setTimeout rather than requestAnimationFrame: rAF is throttled to a
+        // crawl whenever the tab is not the visible one.
+        try {
+            for (let i = 0; i < 16 && n < LIMIT; i++) {
+                const id = model.sample(logits, temp, topK);
+                const ch = model.vocab[id];
+                if (ch === END || ch === USER || ch === BOT || ch === START || ch === "\n") {
+                    n = LIMIT;
+                    break;
+                }
+                text += ch;
+                bubble.body.textContent = text;
+                logits = model.step(id);
+                model.pos++;
+                n++;
+                if (looping(text)) {
+                    n = LIMIT;
+                    break;
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            bubble.body.textContent = text + "  [error: " + e.message + "]";
+            finish(text, userText, bubble, started);
+            return;
+        }
+        log.scrollTop = log.scrollHeight;
+        layout();
+        if (n < LIMIT) {
+            setTimeout(tick, 0);
+        } else {
+            finish(text, userText, bubble, started);
+        }
+    }
+    setTimeout(tick, 0);
+}
+
+function showFacts(rows) {
+    const box = el("facts");
+    box.innerHTML = "";
+    for (const [name, value] of rows) {
+        const line = document.createElement("div");
+        const left = document.createElement("span");
+        const right = document.createElement("span");
+        left.textContent = name;
+        right.textContent = value;
+        line.append(left, right);
+        box.append(line);
+    }
+}
+
+/* Roughly what the wordmark occupies: its max-height plus its margin. */
+const HEADER_SPACE = 110;
+let idle = null;
+let grabbed = null;
+
+/* How tall the conversation actually is. Measured from the turns rather than from
+   the log, because the log grows to fill whatever the wordmark gives up - judging
+   by the container would mean hiding the wordmark could make the content appear
+   to fit, which would show it again, which would take the space back. */
+function contentHeight() {
+    const turns = log.children;
+    if (!turns.length) {
+        return 0;
+    }
+    const top = turns[0].getBoundingClientRect().top;
+    const bottom = turns[turns.length - 1].getBoundingClientRect().bottom;
+    return bottom - top;
+}
+
+/* The wordmark goes exactly when a scrollbar is needed and not merely when the
+   chat is tall: both are decided by whether the turns outgrow the space left for
+   them once the wordmark is out of the way. */
+function layout() {
+    const rail = el("rail");
+    const thumb = el("thumb");
+    const space = el("reader").clientHeight
+        + (el("header").classList.contains("receded") ? 0 : HEADER_SPACE);
+    el("header").classList.toggle("receded", contentHeight() > space - HEADER_SPACE);
+
+    const room = log.scrollHeight - log.clientHeight;
+    rail.classList.toggle("shown", room > 0);
+    if (room <= 0) {
+        return;
+    }
+    const track = rail.clientHeight;
+    const height = Math.max(28, track * log.clientHeight / log.scrollHeight);
+    thumb.style.height = height + "px";
+    thumb.style.top = (track - height) * (log.scrollTop / room) + "px";
+}
+
+/* Grow to a normal width while the view is moving, then thin back to a line. */
+function wake() {
+    el("rail").classList.add("awake");
+    clearTimeout(idle);
+    idle = setTimeout(() => {
+        if (grabbed === null) {
+            el("rail").classList.remove("awake");
+        }
+    }, 900);
+}
+
+function drag(e) {
+    if (grabbed === null) {
+        return;
+    }
+    const track = el("rail").getBoundingClientRect();
+    const height = el("thumb").offsetHeight;
+    const span = track.height - height;
+    const top = Math.min(Math.max(e.clientY - track.top - grabbed, 0), span);
+    log.scrollTop = span ? (top / span) * (log.scrollHeight - log.clientHeight) : 0;
+}
+
+function init() {
+    log = el("log");
+
+    el("send").onclick = () => {
+        const box = el("msg");
+        const v = box.value.trim();
+        if (v) {
+            box.value = "";
+            reply(v);
+        }
+    };
+    el("msg").addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+            el("send").click();
+        }
+    });
+    el("clear").onclick = () => {
+        chatTurns = [];
+        log.innerHTML = '<div class="empty" id="empty">Say something to begin.</div>';
+        el("stats").textContent = "";
+        layout();
+    };
+    el("gear").onclick = e => {
+        e.stopPropagation();
+        const box = el("settings");
+        box.hidden = !box.hidden;
+    };
+    document.addEventListener("click", e => {
+        const box = el("settings");
+        if (!box.hidden && !box.contains(e.target) && e.target !== el("gear")) {
+            box.hidden = true;
+        }
+    });
+    el("temp").oninput = function () {
+        el("tempv").textContent = parseFloat(this.value).toFixed(2);
+    };
+    el("topk").oninput = function () {
+        el("topkv").textContent = this.value;
+    };
+    window.addEventListener("resize", layout);
+    log.addEventListener("scroll", () => {
+        layout();
+        wake();
+    });
+    el("thumb").addEventListener("pointerdown", e => {
+        grabbed = e.clientY - el("thumb").getBoundingClientRect().top;
+        el("thumb").setPointerCapture(e.pointerId);
+        el("rail").classList.add("awake");
+        e.preventDefault();
+    });
+    el("thumb").addEventListener("pointermove", drag);
+    el("thumb").addEventListener("pointerup", e => {
+        grabbed = null;
+        el("thumb").releasePointerCapture(e.pointerId);
+        wake();
+    });
+    el("rail").addEventListener("pointerdown", e => {
+        if (e.target === el("rail")) {
+            const track = el("rail").getBoundingClientRect();
+            const to = (e.clientY - track.top) / track.height;
+            log.scrollTop = to * (log.scrollHeight - log.clientHeight);
+        }
+    });
+
+    if (!MODEL.header || !MODEL.weights || !MODEL.scales) {
+        showFacts([["model", "not embedded"]]);
+        el("empty").textContent = "Run py make_html.py to embed a trained model.";
+        el("send").disabled = true;
+        return;
+    }
+    try {
+        model = new Peitho(MODEL);
+    } catch (e) {
+        console.error(e);
+        showFacts([["model", "failed to load"]]);
+        el("empty").textContent = "Could not read the embedded model: " + e.message;
+        el("send").disabled = true;
+        return;
+    }
+    showFacts([
+        ["weights", model.nParams.toLocaleString()],
+        ["layers", model.nLayer],
+        ["width", model.C + " dim"],
+        ["context", model.block + " chars"],
+        ["precision", model.bits + "-bit"]
+    ]);
+}
+
+let started = false;
+function start() {
+    if (started) {
+        return;
+    }
+    started = true;
+    try {
+        init();
+    } catch (e) {
+        console.error(e);
+        const empty = el("empty");
+        if (empty) {
+            empty.textContent = "startup failed: " + e.message;
+        }
+    }
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+    window.addEventListener("load", start);
+} else {
+    start();
+}
+</script>
+    </body>
+</html>

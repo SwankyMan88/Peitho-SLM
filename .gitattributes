@@ -1,0 +1,11 @@
+# The export is parsed line by line and its payload lines are pasted into JS
+# literals, so a stray carriage return would corrupt it. Keep everything LF.
+* text=auto eol=lf
+
+models/*.txt text eol=lf
+*.html text eol=lf
+*.py text eol=lf
+*.txt text eol=lf
+
+*.pt binary
+*.npy binary
