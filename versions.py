@@ -69,17 +69,30 @@ def next_path(base, folder=MODELS_DIR):
 
 
 def resolve(reference, folder=MODELS_DIR):
-    """Turn a user's `--model` value into a path.
+    """Turn a user's model argument into a path.
 
-    Accepts a path to a file, a base name such as "small" meaning its highest
-    version, or None meaning the most recently written export of any base."""
+    Accepts any of the ways someone might reasonably name one:
+
+        models/small_1.2.txt   a path
+        small_1.2.txt          a filename in the models folder
+        small_1.2              a particular version
+        small                  a base name, meaning its highest version
+        "" or None             the most recently written export of any base
+    """
     if reference and os.path.isfile(reference):
         return reference
 
     if reference:
+        for candidate in (os.path.join(folder, reference),
+                          os.path.join(folder, reference + ".txt")):
+            if os.path.isfile(candidate):
+                return candidate
+
         versions = [v for _, v in existing(reference, folder)]
         if not versions:
-            raise SystemExit(f"No export named {reference}_*.txt in {folder}/")
+            known = ", ".join(f"{b}_{format_version(v)}" for b, v in existing(None, folder))
+            raise SystemExit(f"No export matching {reference!r} in {folder}/. "
+                             f"There is: {known or 'nothing yet'}.")
         return path_for(reference, max(versions), folder)
 
     candidates = [path_for(base, version, folder) for base, version in existing(None, folder)]

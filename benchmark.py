@@ -166,27 +166,39 @@ def bar(fraction, width=20):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Benchmark the trained SLM.")
+    p = argparse.ArgumentParser(
+        description="Benchmark the trained SLM.",
+        epilog="Examples:  py benchmark.py small_1.2   |   py benchmark.py small   |   "
+               "py benchmark.py models/large_1.0.txt   |   py benchmark.py (the checkpoint)")
+    p.add_argument("model", nargs="?", default="",
+                   help="An export to benchmark: a name such as \"small_1.2\", a base name "
+                        "such as \"small\" for its highest version, or a path. Omitted, the "
+                        "full-precision checkpoint is used instead.")
     p.add_argument("--checkpoint", default="model_full.pt")
-    p.add_argument("--compressed_path", default="")
+    p.add_argument("--compressed_path", default="",
+                   help="Same as passing the model as the first argument.")
     p.add_argument("--train_data", default="training.txt")
     p.add_argument("--heldout", default="heldout.txt")
     p.add_argument("--gen_samples", type=int, default=40)
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--skip_export", action="store_true")
     p.add_argument("--from_compressed", action="store_true",
-                   help="Benchmark the exported file itself - this is what ships.")
+                   help="Benchmark the most recent export rather than the checkpoint. "
+                        "Implied by naming a model.")
     args = p.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     rng = random.Random(args.seed)
     torch.manual_seed(args.seed)
 
-    src = (versions.resolve(args.compressed_path) if args.from_compressed
-           else args.checkpoint)
-    model, config, stoi, itos = load_model(src, args.from_compressed, device)
+    # Naming a model means benchmarking that export; the flag is only needed to ask
+    # for the most recent one without naming it.
+    wanted = args.model or args.compressed_path
+    compressed = bool(wanted) or args.from_compressed
+    src = versions.resolve(wanted) if compressed else args.checkpoint
+    model, config, stoi, itos = load_model(src, compressed, device)
     model.eval()
-    if args.from_compressed:
+    if compressed:
         with open(src, encoding="utf-8") as f:
             head = json.loads(f.readline())
         print(f"model source: {src} ({head['bits']}-bit export, group {head['group']})")
@@ -231,17 +243,23 @@ def main():
         print(f"  {label:12} {bar(score)} {score:.0%}")
     print(f"  overall            {sum(s for _, s in rows) / len(rows):.0%}\n")
 
-    # ---- export cost
-    if not args.skip_export and os.path.exists(args.compressed_path):
+    # ---- export cost, when a checkpoint was measured and an export exists to compare
+    if not args.skip_export and not compressed:
+        try:
+            export = versions.resolve("")
+        except SystemExit:
+            export = ""
+        if not export:
+            return
         print("EXPORT")
-        cmodel, ccfg, cstoi, _ = load_model(args.compressed_path, True, device)
+        cmodel, ccfg, cstoi, _ = load_model(export, True, device)
         cmodel.eval()
         chl = heldout_loss(cmodel, held_text, cstoi, ccfg.block_size, device)
-        size = os.path.getsize(args.compressed_path)
+        size = os.path.getsize(export)
         print(f"  compressed loss   {chl:.4f} nats = {chl/math.log(2):.2f} bits/char "
               f"({chl - hl:+.4f} vs full)")
         print(f"  file size         {size:,} bytes = {8*size/n_params:.2f} bits/param, "
-              f"{sum(1 for _ in open(args.compressed_path, encoding='utf-8'))} lines")
+              f"{sum(1 for _ in open(export, encoding='utf-8'))} lines")
 
 
 if __name__ == "__main__":

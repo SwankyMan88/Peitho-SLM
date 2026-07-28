@@ -203,11 +203,13 @@ small_1.0, small_1.1     -> small_1.2
 The base name defaults to the preset, so `--preset small` writes `small_*` and
 `--name peitho` writes `peitho_*`. Anything that loads an export (`make_html.py`,
 `chat.py --compressed`, `benchmark.py --from_compressed`, `standalone.py`) takes a
-path, a base name for its highest version, or nothing for the most recent:
+a path, a filename, an exact version such as `small_1.2`, a base name for its
+highest version, or nothing at all for the most recent:
 
 ```bash
-py benchmark.py --from_compressed --compressed_path small    # highest small_*
-py standalone.py                                             # most recent of any name
+py benchmark.py small_1.2      # that exact export
+py benchmark.py small          # the highest small_*
+py standalone.py               # the most recent export of any name
 ```
 
 | preset | params | 8-bit export |
