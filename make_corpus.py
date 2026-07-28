@@ -1,10 +1,9 @@
 """Build training.txt and heldout.txt from hand-written conversations.
 
-Sources:
+Source:
   conversations.txt  multi-turn conversations, blank line between them
-  seed_pairs.txt     single-turn exchanges, one pair per two lines
 
-Both are hand-written, which is what makes the corpus worth reading. Worked
+It is hand-written, which is what makes the corpus worth reading. Worked
 arithmetic is generated on top by arith.py, freshly each time rather than
 repeated, so what the model sees is thousands of different sums being worked
 through rather than a few hundred sums to memorize.

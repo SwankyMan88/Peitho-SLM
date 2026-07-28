@@ -82,7 +82,6 @@ py test_slm.py       # corpus -> training -> export -> inference, about a minute
 | `test_slm.py` | End-to-end check of the whole pipeline. |
 | `speed_test.py` | Training throughput, so speed changes can be measured instead of guessed. |
 | `models/` | Exported models, `<base>_<version>.txt`. `small_1.2` is the current one and the one baked into the page; `medium_1.0` predates the arithmetic work and is over the browser size budget. |
-| `seed_pairs.txt` | Legacy single-turn pairs, unused by default. See `--pairs`. |
 
 ## The conversation format
 
