@@ -48,9 +48,15 @@ jobs:
           python - <<'EOF'
           import os, versions
           from export import import_compressed
-          path = versions.resolve(None)
-          model, config, stoi, itos = import_compressed(path, device="cpu")
-          size = os.path.getsize(path)
-          print(f"{path}: {size:,} bytes, {sum(p.numel() for p in model.parameters()):,} params")
-          assert size < 520_000, f"{path} is {size:,} bytes; the browser target allows ~509 KB"
+          for base, version in versions.existing():
+              path = versions.path_for(base, version)
+              model, config, stoi, itos = import_compressed(path, device="cpu")
+              size = os.path.getsize(path)
+              print(f"{path}: {size:,} bytes, "
+                    f"{sum(p.numel() for p in model.parameters()):,} params")
+          # Only the small export has to fit a page that carries its own weights.
+          small = versions.resolve("small")
+          size = os.path.getsize(small)
+          assert size < 520_000, f"{small} is {size:,} bytes; the pasted-in target allows ~509 KB"
+          print(f"{small} fits the pasted-in budget at {size:,} bytes")
           EOF

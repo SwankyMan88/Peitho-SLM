@@ -80,7 +80,7 @@ py test_slm.py       # corpus -> training -> export -> inference, about a minute
 | `make_html.py` | Bakes an export *into* a page that cannot fetch, for sandboxes with no networking. |
 | `test_slm.py` | End-to-end check of the whole pipeline. |
 | `speed_test.py` | Training throughput, so speed changes can be measured instead of guessed. |
-| `models/` | Exported models, `<base>_<version>.txt`. `small_1.2` is the current one and the one baked into the page; `medium_1.0` predates the arithmetic work and is over the browser size budget. |
+| `models/` | Exported models, `<base>_<version>.txt`. `small_1.2` is the one to use; see below for why the larger two are worse. |
 
 ## The conversation format
 
@@ -214,8 +214,26 @@ py standalone.py                                             # most recent of an
 |---|---|---|
 | tiny | 110K | ~145 KB |
 | small | 382K | ~509 KB |
-| medium | 820K | ~1.1 MB |
+| medium | 855K | ~1.1 MB |
 | large | 2.7M | ~3.6 MB |
+
+### Bigger is worse on this corpus
+
+All three trained the same way on the same 2M characters:
+
+| | small_1.2 | medium_1.1 | large_1.0 |
+|---|---|---|---|
+| held-out loss | **0.59 bits/char** | 1.12 | 1.35 |
+| generalization gap | **+0.10** | +0.69 | +0.89 |
+| novelty (not recited) | **83%** | 74% | 53% |
+| verbatim copies | **12%**, 21 chars | 8%, 31 chars | 32%, 61 chars |
+| arithmetic overall | **31%** | 19% | 30% |
+
+Large recites almost a third of its replies out of `training.txt`, 61 characters at a
+stretch, and still does not beat a model a seventh its size at arithmetic. The cause
+is data, not architecture: 2M characters over 2.7M parameters is under one character
+per parameter, where small sits at 5.2. The lever for a better model is
+`--target_chars` and more hand-written conversations, not a bigger preset.
 
 ## The browser page
 
