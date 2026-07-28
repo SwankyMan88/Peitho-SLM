@@ -13,3 +13,7 @@ chat_history.json
 __pycache__/
 *.pyc
 .venv/
+peitho_cdn.html
+peitho_khan.html
+peitho_model.html
+built.html

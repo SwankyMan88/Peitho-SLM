@@ -289,6 +289,48 @@
                 width: 130px;
                 accent-color: var(--accent);
             }
+            .picker {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                margin-bottom: 12px;
+            }
+            .picker button {
+                flex: 1 1 30%;
+                padding: 8px 4px;
+                font-size: 0.78rem;
+                letter-spacing: 0.04em;
+                background: transparent;
+                color: var(--dim);
+                border: 1px solid var(--edge);
+                border-radius: 9px;
+                transition: color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+            }
+            .picker button.active {
+                color: var(--ink);
+                border-color: var(--accent);
+            }
+            /* Unreachable models stay clickable so a click can explain why, but
+               read as unavailable and say so on hover. */
+            .picker button.off {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
+            .picker button .size {
+                display: block;
+                font-size: 0.68rem;
+                opacity: 0.7;
+            }
+            .note {
+                color: var(--dim);
+                font-size: 0.73rem;
+                line-height: 1.5;
+                margin-bottom: 12px;
+                min-height: 1.5em;
+            }
+            .note.bad {
+                color: var(--accent);
+            }
             .facts {
                 border-top: 1px solid var(--edge);
                 padding-top: 10px;
@@ -327,7 +369,10 @@
 
             <div class="composer panel">
                 <div class="settings" id="settings" hidden>
-                    <h2>Settings</h2>
+                    <h2>Model</h2>
+                    <div class="picker" id="picker"></div>
+                    <div class="note" id="note"></div>
+                    <h2>Sampling</h2>
                     <div class="tune">
                         <label>Temperature
                             <input type="range" id="temp" min="0.1" max="1.5" step="0.05" value="0.7">
@@ -353,17 +398,6 @@
 <script>
 "use strict";
 
-/* The model lives here. model_compressed.txt is three lines:
-     line 1 (JSON header) -> after `header:`, with NO quotes; JSON is already a
-            valid JS object literal, and the header contains an apostrophe.
-     lines 2 and 3        -> between the SINGLE quotes. Not backticks: the base85
-            alphabet contains ` and $. It has no ' " or \, so single quotes are safe.
-   Run `py make_html.py` to fill this in. */
-var MODEL = {
-    header:  null,
-    weights: '',
-    scales:  ''
-};
 
 const START = "◈", USER = "▶", BOT = "◀", END = "■";
 
@@ -670,6 +704,20 @@ class Peitho {
     }
 }
 
+/* Every model is read from the models/ folder beside this page, so the page
+   itself carries no weights and never has to be rebuilt when one changes.
+
+   HTTP cannot list a directory, so models/index.json says what is in there and
+   make_manifest.py writes it. That also means this page needs a server: opened
+   straight off the disk there is nothing to ask, and fetch refuses file://. */
+const FOLDER = "models/";
+const MANIFEST = FOLDER + "index.json";
+const START_WITH = "small";   /* whichever base name to open with, if it is there */
+const downloaded = {};
+let choices = [];
+let current = null;
+let loading = false;
+
 let model = null;
 let busy = false;
 let log = null;
@@ -821,6 +869,160 @@ function reply(userText) {
     setTimeout(tick, 0);
 }
 
+function say(text, bad) {
+    const note = el("note");
+    note.textContent = text;
+    note.classList.toggle("bad", !!bad);
+}
+
+/* Three lines: JSON header, base85 weights, base85 scales. */
+function parseExport(text) {
+    const lines = text.split("\n");
+    if (lines.length < 3) {
+        throw new Error("expected 3 lines, got " + lines.length);
+    }
+    return { header: JSON.parse(lines[0]), weights: lines[1], scales: lines[2] };
+}
+
+/* "small_1.2.txt" -> "Small 1.2" */
+function shortName(file) {
+    const match = /^(.+)_(\d+(?:[.]\d+)*)[.]txt$/.exec(file);
+    if (!match) {
+        return file;
+    }
+    return match[1].charAt(0).toUpperCase() + match[1].slice(1) + " " + match[2];
+}
+
+function round(params) {
+    return params >= 1e6 ? (params / 1e6).toFixed(1) + "M"
+                         : Math.round(params / 1000) + "K";
+}
+
+function describe(choice) {
+    showFacts([
+        ["model", choice.label],
+        ["weights", model.nParams.toLocaleString()],
+        ["layers", model.nLayer],
+        ["width", model.C + " dim"],
+        ["context", model.block + " chars"],
+        ["precision", model.bits + "-bit"]
+    ]);
+}
+
+function paintPicker() {
+    for (const choice of choices) {
+        el("pick-" + choice.key).classList.toggle("active", choice.key === current);
+    }
+}
+
+async function use(choice) {
+    if (loading || busy || choice.key === current) {
+        return;
+    }
+    const button = el("pick-" + choice.key);
+    if (button.classList.contains("off")) {
+        say(button.title, true);
+        return;
+    }
+
+    loading = true;
+    el("send").disabled = true;
+    try {
+        if (!downloaded[choice.key]) {
+            say("Loading " + choice.file + " (" + choice.size + " weights)...");
+            const response = await fetch(FOLDER + choice.file);
+            if (!response.ok) {
+                throw new Error("the server answered " + response.status);
+            }
+            downloaded[choice.key] = await response.text();
+        }
+        say("Unpacking " + choice.label + "...");
+        await new Promise(done => setTimeout(done, 0));  // let that message paint
+        model = new Peitho(parseExport(downloaded[choice.key]));
+        current = choice.key;
+        chatTurns = [];
+        describe(choice);
+        paintPicker();
+        say(choice.label + " loaded from " + FOLDER + choice.file);
+        setEmpty("Say something to begin.");
+    } catch (e) {
+        console.error(e);
+        say("Could not load " + choice.label + ": " + e.message, true);
+    } finally {
+        loading = false;
+        el("send").disabled = !model;
+    }
+}
+
+function addChoice(choice) {
+    choices.push(choice);
+    const button = document.createElement("button");
+    button.id = "pick-" + choice.key;
+    button.innerHTML = choice.label + '<span class="size">' + choice.size + "</span>";
+    button.onclick = () => use(choice);
+    el("picker").append(button);
+    return button;
+}
+
+/* The placeholder is removed as soon as a turn is added, so it may not be there. */
+function setEmpty(text) {
+    const empty = el("empty");
+    if (empty) {
+        empty.textContent = text;
+    }
+}
+
+function cannotLoad(reason) {
+    setEmpty(reason);
+    el("send").disabled = true;
+    say(reason, true);
+}
+
+/* Read the folder, offer everything in it, and open the smallest of the
+   preferred base name - the quickest to fetch and unpack. */
+async function findModels() {
+    if (typeof fetch !== "function") {
+        cannotLoad("This page loads its model from the models folder, and there is no "
+                   + "way to fetch it here.");
+        return;
+    }
+    let listing;
+    try {
+        const response = await fetch(MANIFEST);
+        if (!response.ok) {
+            throw new Error("the server answered " + response.status);
+        }
+        listing = await response.json();
+    } catch (e) {
+        console.error(e);
+        cannotLoad("Could not read " + MANIFEST + " (" + e.message + "). This page has to "
+                   + "be served over HTTP rather than opened from the disk, and "
+                   + "py make_manifest.py has to have been run.");
+        return;
+    }
+
+    const models = listing.models || [];
+    if (!models.length) {
+        cannotLoad("No models in " + FOLDER + ". Train one, then run py make_manifest.py.");
+        return;
+    }
+    for (const entry of models) {
+        addChoice({
+            key: entry.file.replace(/[^A-Za-z0-9]/g, "_"),
+            label: shortName(entry.file),
+            size: round(entry.params),
+            file: entry.file,
+            params: entry.params
+        });
+    }
+    paintPicker();
+
+    const preferred = choices.filter(c => c.file.startsWith(START_WITH + "_"));
+    const pool = preferred.length ? preferred : choices;
+    const smallest = pool.reduce((a, b) => (a.params <= b.params ? a : b));
+    await use(smallest);
+}
+
 function showFacts(rows) {
     const box = el("facts");
     box.innerHTML = "";
@@ -961,28 +1163,9 @@ function init() {
         }
     });
 
-    if (!MODEL.header || !MODEL.weights || !MODEL.scales) {
-        showFacts([["model", "not embedded"]]);
-        el("empty").textContent = "Run py make_html.py to embed a trained model.";
-        el("send").disabled = true;
-        return;
-    }
-    try {
-        model = new Peitho(MODEL);
-    } catch (e) {
-        console.error(e);
-        showFacts([["model", "failed to load"]]);
-        el("empty").textContent = "Could not read the embedded model: " + e.message;
-        el("send").disabled = true;
-        return;
-    }
-    showFacts([
-        ["weights", model.nParams.toLocaleString()],
-        ["layers", model.nLayer],
-        ["width", model.C + " dim"],
-        ["context", model.block + " chars"],
-        ["precision", model.bits + "-bit"]
-    ]);
+    el("send").disabled = true;
+    setEmpty("Loading the model...");
+    findModels();
 }
 
 let started = false;

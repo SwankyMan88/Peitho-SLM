@@ -49,11 +49,14 @@ py train.py --preset small --block_size 384 --fresh --dropout 0.0 --steps 30000 
 ```
 
 ```bash
-py make_html.py
+py make_manifest.py
 ```
 
-That last step writes `peitho_model.html` — one self-contained file with the model
-hard-coded. Double-click it.
+Then serve the folder and open `peitho.html`:
+
+```bash
+py -m http.server
+```
 
 ```bash
 py chat.py           # talk to it in the terminal
@@ -77,8 +80,9 @@ py test_slm.py       # corpus -> training -> export -> inference, about a minute
 | `compose.py` | Generates varied English from word pools and clause shapes — most of the corpus. |
 | `arith.py` | Generates worked arithmetic. Every sum is solved correctly here. |
 | `versions.py` | Names and finds exports in `models/`. |
-| `peitho.html` | The browser page. `MODEL` near the top is where an export goes. |
-| `make_html.py` | Bakes an export into `peitho.html` → `peitho_model.html`. |
+| `peitho.html` | The browser page. Carries no weights: it reads `models/index.json` and offers everything in the folder. |
+| `make_manifest.py` | Writes `models/index.json`, which is how the page knows what is in the folder. |
+| `make_html.py` | Bakes an export *into* a page that cannot fetch, for sandboxes with no networking. |
 | `test_slm.py` | End-to-end check of the whole pipeline. |
 | `speed_test.py` | Training throughput, so speed changes can be measured instead of guessed. |
 | `models/` | Exported models, `<base>_<version>.txt`. `small_1.2` is the current one and the one baked into the page; `medium_1.0` predates the arithmetic work and is over the browser size budget. |
@@ -207,8 +211,8 @@ The base name defaults to the preset, so `--preset small` writes `small_*` and
 path, a base name for its highest version, or nothing for the most recent:
 
 ```bash
-py make_html.py --model small       # highest small_*
-py make_html.py                     # most recent of any name
+py benchmark.py --from_compressed --compressed_path small    # highest small_*
+py standalone.py                                             # most recent of any name
 ```
 
 | preset | params | 8-bit export |
@@ -220,11 +224,27 @@ py make_html.py                     # most recent of any name
 
 ## The browser page
 
-`make_html.py` writes `peitho_model.html`: one file, no server, no network, no
-dependencies. Generation runs at roughly 500–2000 characters/sec on a laptop.
+`peitho.html` runs the model in the browser at roughly 500–2000 characters/sec. It
+holds no weights of its own: on load it reads `models/index.json`, offers every
+export in the folder as a button, and opens the smallest `small_*` it finds. Adding
+a model means training it and re-running `py make_manifest.py` — the page needs no
+edit and no rebuild.
 
-The model must be embedded — there is no loader UI. To hard-code one by hand, edit
-`MODEL` near the top of the script in `peitho.html`:
+Because it fetches, **it needs to be served** — `py -m http.server`, GitHub Pages,
+anything. Opened straight off the disk, `fetch` refuses `file://` and the page says
+so instead of failing silently.
+
+### For somewhere that cannot fetch at all
+
+Sandboxes without networking (Khan Academy's, for one) have no `fetch`, so there the
+weights have to be *in* the page. Give a copy of the page a `var MODEL = {...};`
+block and bake an export into it:
+
+```bash
+py make_html.py --template mypage.html --out built.html --model small
+```
+
+To paste one in by hand instead:
 
 * **line 1** (the JSON header) goes after `header:` with **no quotes at all**. JSON is
   already a valid JS object literal, and the header contains an apostrophe.
@@ -290,7 +310,7 @@ Edit `conversations.txt` — strict `▶…■` / `◀…■`, one turn per line
 conversations — then rebuild and retrain:
 
 ```bash
-py make_corpus.py && py train.py --preset small --block_size 384 --fresh --dropout 0.0 --steps 30000 --select_by train
+py make_corpus.py && py train.py --preset small --block_size 384 --fresh --dropout 0.0 --steps 30000 --select_by train && py make_manifest.py
 ```
 
 `make_corpus.py` prints the mix and warns when it is lopsided. The two dials that

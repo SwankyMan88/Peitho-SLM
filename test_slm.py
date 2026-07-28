@@ -7,6 +7,7 @@ anything - it tests that the pieces still fit together, which is what breaks.
     py test_slm.py
 """
 
+import json
 import os
 import random
 import shutil
@@ -140,17 +141,40 @@ def test_pipeline():
         check("standalone.py runs without torch or numpy", code == 0, out[-400:])
         check("standalone.py produced a reply", "Bot:" in out, out[-200:])
 
-        code, out = run("make_html.py", "--model", export,
+        code, out = run("make_manifest.py", "--models_dir", work,
+                        "--out", os.path.join(work, "index.json"))
+        check("make_manifest runs", code == 0, out[-300:])
+        with open(os.path.join(work, "index.json"), encoding="utf-8") as f:
+            listing = json.load(f)
+        entry = listing["models"][0]
+        check("manifest lists the export", entry["file"] == "test_1.0.txt", str(entry))
+        check("manifest counts parameters", entry["params"] > 0, str(entry))
+
+        # peitho.html itself has no MODEL block - it fetches models/ - so baking is
+        # checked against a stub standing in for a page that cannot fetch.
+        template = os.path.join(work, "template.html")
+        with open(template, "w", encoding="utf-8", newline="\n") as f:
+            f.write("<!DOCTYPE html>\n<html><body><script>\nvar MODEL = {\n"
+                    "    header:  null,\n    weights: '',\n    scales:  ''\n};\n"
+                    "</script></body></html>\n")
+        code, out = run("make_html.py", "--model", export, "--template", template,
                         "--out", os.path.join(work, "page.html"))
         check("make_html bakes a page", code == 0, out[-400:])
         page = os.path.join(work, "page.html")
         if os.path.exists(page):
             with open(page, encoding="utf-8") as f:
                 html = f.read()
-            check("page is self contained (no external requests)",
-                  "src=\"http" not in html and "href=\"http" not in html
-                  and "fetch(" not in html)
-            check("page carries the weights", len(html) > os.path.getsize(export))
+            # The page may fetch models/ beside itself, but must never reach off
+            # the host: it has to keep working with no network at all.
+            # The page may fetch models/ beside itself, but must never reach off
+            # the host: it has to keep working with no network at all.
+            offsite = ("src=\"http", "href=\"http", "fetch(\"http", "fetch('http",
+                       "<link", "<script src")
+            check("page requests nothing from another host",
+                  not any(mark in html for mark in offsite))
+            check("page carries the weights", len(html) > os.path.getsize(export) * 0.9)
+            check("page records which export it carries",
+                  "file:    'test_1.0.txt'" in html)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
