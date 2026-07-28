@@ -252,11 +252,11 @@ The export is a plain text file, so a GitHub repo is a CDN. Tag a release and pi
 it — branch URLs are cached for 12 hours, tagged URLs are permanent:
 
 ```bash
-git tag v1.2 && git push origin v1.2
+git tag v1.3 && git push origin v1.3
 ```
 
 ```
-https://cdn.jsdelivr.net/gh/<user>/<repo>@v1.2/models/small_1.2.txt
+https://cdn.jsdelivr.net/gh/SwankyMan88/Peitho-SLM@v1.2/models/small_1.2.txt
 ```
 
 jsDelivr answers with `access-control-allow-origin: *`, so:
