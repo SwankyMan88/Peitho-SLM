@@ -1,5 +1,8 @@
 # Peitho
 
+**[Talk to it in your browser](https://swankyman88.github.io/Peitho-SLM/)** — no
+install, nothing sent anywhere, the whole model arrives as half a megabyte of text.
+
 A small language model written from scratch in PyTorch — a real character-level
 transformer, not a wrapper around anything. You train it on your own text, talk to it
 in the terminal, and export its weights to a **single 509 KB text file** that runs with
