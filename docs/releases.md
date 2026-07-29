@@ -1,5 +1,28 @@
 # Releases
 
+## 1.2.1 — Usable on a phone
+
+One change, to `peitho.html`. No model changed, so every jsDelivr URL pinned to
+`v1.2.0` keeps serving the same bytes and nothing needs repointing.
+
+The composer put four controls in one row, which at 375px left the text box **about
+100 pixels wide** — barely wider than its placeholder. Send stays beside the input;
+Clear and Settings moved to a quiet second line, right-aligned, at a 34px minimum
+height so they are still comfortable to tap.
+
+| at 375 x 812 | before | after |
+|---|---|---|
+| text box width | ~100px | **220px** |
+| text box font | 15px | **16px** |
+
+The font is the other half of the fix. iOS Safari zooms the whole page in when a
+focused field's text is smaller than 16px, so typing a message would shove the layout
+sideways. `max(16px, 1rem)` prevents that and changes nothing on a desktop.
+
+Verified at both sizes: on mobile the tools sit below the input, the settings popover
+fits inside the viewport at 319px, and the page still does not scroll; at 1280x800 the
+input is 605px and the tools line up with Send.
+
 ## 1.2.0 — Bigger is finally better
 
 Three new models, and the point of the release is that they now improve with size.
