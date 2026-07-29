@@ -980,7 +980,9 @@ function cannotLoad(reason) {
 /* Is it there, and how big? Headers only, so looking costs nothing. */
 async function weigh(file) {
     try {
-        const response = await fetch(FOLDER + file, { method: "HEAD" });
+        // no-store because this is a folder listing in disguise: a cached 200 for a
+        // model that has since been deleted offers a button that cannot load.
+        const response = await fetch(FOLDER + file, { method: "HEAD", cache: "no-store" });
         if (!response.ok) {
             return null;
         }
