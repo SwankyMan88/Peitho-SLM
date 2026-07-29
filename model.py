@@ -12,7 +12,10 @@ START_MARK = "◈"  # WHITE DIAMOND WITH BLACK CENTRE - a conversation begins he
 USER_MARK = "▶"   # BLACK RIGHT-POINTING TRIANGLE   - a line the user said
 BOT_MARK = "◀"    # BLACK LEFT-POINTING TRIANGLE    - a line the model said
 END_MARK = "■"    # BLACK SQUARE                    - end of a turn (stop generating)
-MARKERS = START_MARK + USER_MARK + BOT_MARK + END_MARK
+THINK_MARK = "◇"  # WHITE DIAMOND - the model has finished thinking; what
+                       # follows is the reply. Everything between the bot marker
+                       # and this is working out, not something to show verbatim.
+MARKERS = START_MARK + USER_MARK + BOT_MARK + END_MARK + THINK_MARK
 
 BASE_CHARS = string.ascii_letters + string.digits + string.punctuation + " \t\n" + MARKERS
 

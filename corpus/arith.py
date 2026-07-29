@@ -189,6 +189,8 @@ def mul_distribute(rng, lhs, rhs):
     if w < 2:
         return None
     parts = [p for p in reversed(places(rhs, w)) if p]
+    if len(parts) < 2:
+        return None      # "Split the 20: 36 * 20 = 720. Add those: 720 = 720."
     pieces = [f"{lhs} * {p} = {lhs * p}" for p in parts]
     return (f"Split the {rhs}: " + ", ".join(pieces) +
             f". Add those: {' + '.join(str(lhs * p) for p in parts)} = {lhs * rhs}.")

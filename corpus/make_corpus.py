@@ -22,11 +22,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import paths
-from model import START_MARK, USER_MARK, BOT_MARK, END_MARK
+from model import START_MARK, USER_MARK, BOT_MARK, END_MARK, THINK_MARK
 
 sys.path.insert(0, paths.CORPUS)
 import arith
 import compose
+import thinking
 
 
 def load_conversations(path):
@@ -43,6 +44,18 @@ def load_pairs(path):
         if lines[i].startswith(USER_MARK) and lines[i + 1].startswith(BOT_MARK):
             pairs.append([lines[i], lines[i + 1]])
     return pairs
+
+
+def thinking_conversation(rng):
+    """Turns that work something out, then say the short answer - see thinking.py.
+
+    The working goes between the bot marker and the think marker, so an interface
+    can fold it away and the reply on its own is what a person reads."""
+    lines = []
+    for prompt, thought, reply in thinking.conversation(rng):
+        lines += [USER_MARK + prompt + END_MARK,
+                  BOT_MARK + thought + THINK_MARK + reply + END_MARK]
+    return lines
 
 
 def math_conversation(rng):
@@ -177,7 +190,8 @@ def vary_user(rng, line):
     return USER_MARK + body + END_MARK
 
 
-def render(rng, blocks, target_chars, composed_share=0.0, math_share=0.0):
+def render(rng, blocks, target_chars, composed_share=0.0, math_share=0.0,
+           think_share=0.0):
     """Fill to the target size, mixing repeated hand-written blocks with freshly
     generated ones.
 
@@ -192,8 +206,15 @@ def render(rng, blocks, target_chars, composed_share=0.0, math_share=0.0):
         rng.shuffle(order)
         for block in order:
             if composed_share and rng.random() < composed_share:
-                lines = (math_conversation(rng) if rng.random() < math_share
-                         else composed_conversation(rng))
+                # The thinking share comes out of the generated stream, so raising
+                # it trades working-shown-in-the-reply for working-then-answer.
+                draw = rng.random()
+                if draw < think_share:
+                    lines = thinking_conversation(rng)
+                elif draw < think_share + math_share:
+                    lines = math_conversation(rng)
+                else:
+                    lines = composed_conversation(rng)
             else:
                 lines = reframe(rng, block)
             lines = [vary_user(rng, l) if l.startswith(USER_MARK) else l for l in lines]
@@ -221,6 +242,9 @@ def main():
                    help="Share of the corpus generated fresh by compose.py. This is the "
                         "part that is not repeated, so it is what teaches composing "
                         "rather than reciting.")
+    p.add_argument("--think", type=float, default=0.0,
+                   help="Share of the generated stream where the model works the answer "
+                        "out first and marks the end of its working. Off by default.")
     p.add_argument("--math", type=float, default=0.28,
                    help="Share of the generated stream that is worked arithmetic. "
                         "Generated fresh, so every sum is a different one.")
@@ -238,9 +262,11 @@ def main():
     held, train_blocks = blocks[:n_held], blocks[n_held:]
 
     unique = sum(len("\n".join(b)) for b in train_blocks)
-    train = render(rng, train_blocks, args.target_chars, args.composed, args.math)
+    train = render(rng, train_blocks, args.target_chars, args.composed, args.math,
+                   args.think)
     heldout = render(random.Random(args.seed + 1), held,
-                     max(50_000, int(args.target_chars * 0.06)), args.composed, args.math)
+                     max(50_000, int(args.target_chars * 0.06)), args.composed, args.math,
+                     args.think)
 
     for path, text, label in ((args.train_out, train, "train"),
                               (args.heldout_out, heldout, "heldout")):
@@ -255,7 +281,8 @@ def main():
     print(f"hand-written text: {unique:,} unique chars filling {repeated_chars:,} "
           f"chars of corpus, so ~{passes} passes over it")
     print(f"generated text: {args.composed:.0%} of the corpus, effectively all unique, "
-          f"of which {args.math:.0%} is worked arithmetic")
+          f"of which {args.math:.0%} is worked arithmetic and {args.think:.0%} thinks "
+          f"before answering")
     if passes > 60:
         print("  WARNING: the hand-written part is repeating heavily. Add conversations, "
               "or raise --composed so more of the corpus is fresh.")

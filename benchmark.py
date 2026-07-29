@@ -25,7 +25,8 @@ import sys
 
 import torch
 
-from model import GPT, START_MARK, USER_MARK, BOT_MARK, END_MARK, encode, decode
+from model import (GPT, START_MARK, USER_MARK, BOT_MARK, END_MARK, THINK_MARK,
+                   encode, decode)
 from export import import_compressed
 import paths
 import versions
@@ -84,6 +85,14 @@ def reply_to(model, prompt, stoi, itos, config, device, max_new=220, temperature
     return text.strip(), stopped
 
 
+def split_thought(text):
+    """(what it worked out, what it said). Models without thinking have no working."""
+    if THINK_MARK not in text:
+        return "", text
+    thought, _, said = text.partition(THINK_MARK)
+    return thought.strip(), said.strip()
+
+
 def bench_generation(model, stoi, itos, config, device, prompts, train_text, word_set):
     stopped_count = 0
     lengths = []
@@ -92,10 +101,13 @@ def bench_generation(model, stoi, itos, config, device, prompts, train_text, wor
     exact_copies = 0
     prefix_matches = []
     empties = 0
+    thoughts = []
 
     for prompt_text in prompts:
         prompt = f"{START_MARK}\n{USER_MARK}{prompt_text}{END_MARK}\n{BOT_MARK}"
-        text, stopped = reply_to(model, prompt, stoi, itos, config, device)
+        whole, stopped = reply_to(model, prompt, stoi, itos, config, device)
+        thought, text = split_thought(whole)
+        thoughts.append(len(thought))
         stopped_count += stopped
         lengths.append(len(text))
         if not text:
@@ -131,6 +143,8 @@ def bench_generation(model, stoi, itos, config, device, prompts, train_text, wor
         "variety": sum(trigram_ratios) / len(trigram_ratios) if trigram_ratios else float("nan"),
         "exact_copy": exact_copies / n,
         "mean_copied_prefix": sum(prefix_matches) / len(prefix_matches) if prefix_matches else 0,
+        "mean_thought": sum(thoughts) / n,
+        "thinks": sum(1 for t in thoughts if t) / n,
     }
 
 
@@ -161,8 +175,11 @@ def bench_arithmetic(model, stoi, itos, config, device, seed, trials=25):
                 truth = lhs + rhs if op == "+" else lhs - rhs if op == "-" else lhs * rhs
                 prompt = (f"{START_MARK}\n{USER_MARK}What is {lhs} {op} {rhs}?"
                           f"{END_MARK}\n{BOT_MARK}")
-                text, _ = reply_to(model, prompt, stoi, itos, config, device,
-                                   max_new=300, temperature=0.6, top_k=20)
+                whole, _ = reply_to(model, prompt, stoi, itos, config, device,
+                                   max_new=400, temperature=0.6, top_k=20)
+                # Score the reply, not the working: a number that only appears while
+                # thinking is not an answer the reader was given.
+                _, text = split_thought(whole)
                 numbers = [int(n) for n in re.findall(r"-?\d+", text)]
                 right += bool(numbers) and numbers[-1] == truth
             rows.append((f"{label} {op}", right / trials))
@@ -244,6 +261,9 @@ def main():
     print(f"  variety (distinct 3g) {bar(g['variety'])} {g['variety']:.0%}")
     print(f"  novelty (not recited) {bar(g['novelty'])} {g['novelty']:.0%}")
     print(f"  mean reply length   {g['mean_len']:.0f} chars | empty replies {g['empty']:.0%}")
+    if g["thinks"]:
+        print(f"  thinks first        {g['thinks']:.0%} of replies | "
+              f"mean working {g['mean_thought']:.0f} chars")
     print(f"  verbatim copies     {g['exact_copy']:.0%} of replies | "
           f"mean copied prefix {g['mean_copied_prefix']:.0f} chars\n")
 
