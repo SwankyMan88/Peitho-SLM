@@ -1,31 +1,13 @@
 # Releases
 
-## 1.2.1 — Usable on a phone
+## 1.2.1 — Bigger is finally better
 
-One change, to `peitho.html`. No model changed, so every jsDelivr URL pinned to
-`v1.2.0` keeps serving the same bytes and nothing needs repointing.
+Released together with 1.2.0, whose tag carries the same models. Three new exports,
+a specification for the format, a demo you can click, and a composer that works on a
+phone.
 
-The composer put four controls in one row, which at 375px left the text box **about
-100 pixels wide** — barely wider than its placeholder. Send stays beside the input;
-Clear and Settings moved to a quiet second line, right-aligned, at a 34px minimum
-height so they are still comfortable to tap.
+### The models improve with size now
 
-| at 375 x 812 | before | after |
-|---|---|---|
-| text box width | ~100px | **220px** |
-| text box font | 15px | **16px** |
-
-The font is the other half of the fix. iOS Safari zooms the whole page in when a
-focused field's text is smaller than 16px, so typing a message would shove the layout
-sideways. `max(16px, 1rem)` prevents that and changes nothing on a desktop.
-
-Verified at both sizes: on mobile the tools sit below the input, the settings popover
-fits inside the viewport at 319px, and the page still does not scroll; at 1280x800 the
-input is 605px and the tools line up with Send.
-
-## 1.2.0 — Bigger is finally better
-
-Three new models, and the point of the release is that they now improve with size.
 Trained identically, on the same corpus, differing only in preset:
 
 | | small_1.3 | medium_1.2 | large_1.1 |
@@ -38,22 +20,28 @@ Trained identically, on the same corpus, differing only in preset:
 | generalization gap | +0.018 | +0.029 | +0.042 |
 | verbatim copies | 12% | 16% | **8%** |
 
-Before this release the same three presets scored 29%, 25% and 32% — flat, with the
-largest model the *worst* on held-out text and reciting 38% of its replies. Nothing
-about the architecture changed. The corpus went from 2M characters to 20M.
+Before this, the same three presets scored 29%, 25% and 32% — flat, with the largest
+model the *worst* on held-out text and reciting 38% of its replies word for word.
 
-At 2M characters, large had 0.72 characters per parameter, so memorizing the corpus
-was a cheaper way to cut loss than learning the method, and it took that route. At
-20M it has 7.2, memorizing is no longer affordable, and the capacity goes into
-carries instead: its generalization gap fell from +0.89 to +0.042 and it now recites
-*less* than the small model.
+Nothing about the architecture changed. The corpus went from 2M characters to 20M,
+which took large from 0.72 characters per parameter to 7.2. At 0.72, memorizing the
+corpus was a cheaper way to cut loss than learning the method, so it took that route.
+At 7.2 that is unaffordable: its generalization gap fell from +0.89 to +0.042, and it
+now recites *less* than the small model.
 
-Small dropped 29% -> 25%, which is not a regression: the operand mix moved towards
-two and three digits, so there are fewer trivial one-digit sums to get right for
-free. 382K parameters cannot hold the carry procedure, and that is the honest shape
-of "bigger is better".
+Asked `148 + 267`, the difference is one carry:
 
-### The format is now specified
+```
+Small 1.3:  Hundreds: 300. Tens: 40 + 60 = 90.  Ones: 15. -> 305   wrong
+Large 1.1:  Hundreds: 300. Tens: 40 + 60 = 100. Ones: 15. -> 415   right
+```
+
+Small dropped 29% -> 25%, which is not a regression. Operands are now weighted
+towards two and three digits, because one digit has only ~81 combinations per
+operator and gives capacity nothing to buy. 382K parameters cannot hold the carry
+procedure, and that is the honest shape of "bigger is better".
+
+### The format is specified, with vectors that prove a port correct
 
 [docs/spec.md](spec.md) describes the export completely enough to implement a decoder
 without reading any Python: the three lines, every header field, nibble order and
@@ -65,19 +53,47 @@ is usually wrong.
 17 KB — and the numbers it must produce: token ids, the logits after the final token,
 and eight greedy steps. Three implementations are checked against them in CI:
 PyTorch, the pure-Python decoder, and the JavaScript inside `peitho.html`, which is
-read out of the page rather than copied so what is tested is what ships.
+read out of the page rather than copied, so what is tested is what ships.
 
 The greedy vectors earn their place. A key-value cache that is correct on the first
 token and wrong afterwards passes a logit comparison and fails this — which is
 exactly the mistake the first conformance runner made.
 
-### Also in this release
+### A demo you can click
 
-* **A demo link.** `index.html` serves the bare Pages URL, so
-  [swankyman88.github.io/Peitho-SLM](https://swankyman88.github.io/Peitho-SLM/) opens
-  the chat instead of a 404.
-* **Superseded exports removed.** `models/` holds the latest of each preset and
-  nothing else, so the page offers three buttons rather than five.
+`index.html` serves the bare Pages URL, so
+[swankyman88.github.io/Peitho-SLM](https://swankyman88.github.io/Peitho-SLM/) opens
+the chat instead of returning a 404.
+
+### Usable on a phone
+
+The composer put four controls in one row, which at 375px left the text box about 100
+pixels wide — barely wider than its placeholder. Send stays beside the input; Clear
+and Settings moved to a quiet second line, right-aligned, at a 34px minimum height so
+they are still comfortable to tap.
+
+| at 375 x 812 | before | after |
+|---|---|---|
+| text box width | ~100px | **220px** |
+| text box font | 15px | **16px** |
+
+The font is half the fix: iOS Safari zooms the whole page in when a focused field's
+text is smaller than 16px, so typing would shove the layout sideways.
+
+### Two bugs found while verifying
+
+* **The picker offered a model that had been deleted, and loaded it.** A `HEAD` probe
+  is a folder listing in disguise, and the browser cached both the probe and the body:
+  the same request answered `200` from cache and `404` with `cache: no-store`. The
+  probe now bypasses the cache.
+* **`tools/make_html.py` called `paths.short()` without importing `paths`.** It only
+  fails on the last line of a successful build, so it passed locally and broke CI. The
+  suite now walks every source file and refuses one that uses a module it never
+  imported.
+
+### Also
+
+* **Superseded exports removed**, so the page offers three models rather than five.
 * **Training measured rather than guessed at.** Concurrent runs are *slower* than
   sequential on a saturated GPU, larger batches buy 7-10%, and `torch.compile` needs
   Triton, which has no Windows build. The corpus cache is int16 rather than float64,
@@ -86,7 +102,8 @@ exactly the mistake the first conformance runner made.
 ### Verified
 
 `tests/test_slm.py` 43 checks and `tests/test_conformance.py` 25 checks, both green,
-plus the browser page loading each of the three models and answering correctly.
+plus the browser page loading each of the three models and answering correctly at
+375x812 and 1280x800.
 
 ## 1.0.1 — Tidying up
 
