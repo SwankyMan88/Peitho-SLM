@@ -16,9 +16,15 @@ instead, so the corpus is free to be conversation.
 """
 
 import argparse
+import os
 import random
+import sys
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import paths
 from model import START_MARK, USER_MARK, BOT_MARK, END_MARK
+
+sys.path.insert(0, paths.CORPUS)
 import arith
 import compose
 
@@ -201,13 +207,13 @@ def render(rng, blocks, target_chars, composed_share=0.0, math_share=0.0):
 
 def main():
     p = argparse.ArgumentParser(description="Generate the conversation corpus.")
-    p.add_argument("--conversations", default="conversations.txt")
+    p.add_argument("--conversations", default=paths.CONVERSATIONS)
     p.add_argument("--pairs", default="",
                    help="Optional file of single-turn pairs. Left empty by default: "
                         "short fixed exchanges repeated to fill a corpus are what the "
                         "model recites back word for word.")
-    p.add_argument("--train_out", default="training.txt")
-    p.add_argument("--heldout_out", default="heldout.txt")
+    p.add_argument("--train_out", default=paths.TRAINING)
+    p.add_argument("--heldout_out", default=paths.HELDOUT)
     p.add_argument("--target_chars", type=int, default=2_000_000)
     p.add_argument("--heldout_frac", type=float, default=0.10,
                    help="Fraction of blocks withheld from training entirely.")
@@ -221,6 +227,7 @@ def main():
     p.add_argument("--seed", type=int, default=1234)
     args = p.parse_args()
 
+    paths.ensure_build()
     rng = random.Random(args.seed)
     conversations = load_conversations(args.conversations)
     pairs = load_pairs(args.pairs) if args.pairs else []
@@ -239,7 +246,7 @@ def main():
                               (args.heldout_out, heldout, "heldout")):
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
-        print(f"{label:8} -> {path}: {len(text):,} chars, "
+        print(f"{label:8} -> {paths.short(path)}: {len(text):,} chars, "
               f"{text.count(START_MARK):,} conversations, {len(set(text))} distinct characters")
 
     print(f"\n{len(conversations)} hand-written conversations, {len(pairs)} pairs")

@@ -27,6 +27,7 @@ import torch
 
 from model import GPT, START_MARK, USER_MARK, BOT_MARK, END_MARK, encode, decode
 from export import import_compressed
+import paths
 import versions
 
 # Fixed, and deliberately not derived from --seed: the arithmetic score has to be
@@ -184,11 +185,11 @@ def main():
                    help="An export to benchmark: a name such as \"small_1.2\", a base name "
                         "such as \"small\" for its highest version, or a path. Omitted, the "
                         "full-precision checkpoint is used instead.")
-    p.add_argument("--checkpoint", default="model_full.pt")
+    p.add_argument("--checkpoint", default=paths.CHECKPOINT)
     p.add_argument("--compressed_path", default="",
                    help="Same as passing the model as the first argument.")
-    p.add_argument("--train_data", default="training.txt")
-    p.add_argument("--heldout", default="heldout.txt")
+    p.add_argument("--train_data", default=paths.TRAINING)
+    p.add_argument("--heldout", default=paths.HELDOUT)
     p.add_argument("--gen_samples", type=int, default=40)
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--skip_export", action="store_true")
@@ -211,9 +212,9 @@ def main():
     if compressed:
         with open(src, encoding="utf-8") as f:
             head = json.loads(f.readline())
-        print(f"model source: {src} ({head['bits']}-bit export, group {head['group']})")
+        print(f"model source: {paths.short(src)} ({head['bits']}-bit export, group {head['group']})")
     else:
-        print(f"model source: {src} (full precision)")
+        print(f"model source: {paths.short(src)} (full precision)")
     n_params = sum(q.numel() for q in model.parameters())
 
     train_text = open(args.train_data, encoding="utf-8").read()

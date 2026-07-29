@@ -11,6 +11,7 @@ import torch
 from model import GPT, GPTConfig, build_vocab, encode
 from model import START_MARK, USER_MARK, BOT_MARK, END_MARK
 from export import export_compressed
+import paths
 import versions
 
 # Architecture presets. Bigger = better text, larger export file.
@@ -99,8 +100,8 @@ def lr_at(step, total_steps, base_lr, min_lr, warmup):
 
 def main():
     parser = argparse.ArgumentParser(description="Train the character-level SLM.")
-    parser.add_argument("--data", default="training.txt")
-    parser.add_argument("--val_data", default="heldout.txt",
+    parser.add_argument("--data", default=paths.TRAINING)
+    parser.add_argument("--val_data", default=paths.HELDOUT,
                         help="Separate validation file. Falls back to a slice of --data if absent.")
     parser.add_argument("--steps", type=int, default=3000)
     parser.add_argument("--batch_size", type=int, default=64)
@@ -138,7 +139,7 @@ def main():
     parser.add_argument("--eval_interval", type=int, default=500,
                         help="Patience is counted in evals, so a smaller interval also means "
                              "a shorter grace period before early stopping.")
-    parser.add_argument("--out_dir", default=".")
+    parser.add_argument("--out_dir", default=paths.BUILD)
     parser.add_argument("--checkpoint", default="model_full.pt")
     parser.add_argument("--compressed_out", default="",
                         help="Explicit export path. Left empty, the export is written to "

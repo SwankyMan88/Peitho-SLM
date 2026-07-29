@@ -11,7 +11,9 @@ import argparse
 import json
 import os
 import re
+import sys
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import versions
 
 
@@ -67,7 +69,7 @@ def main():
         f.write(html)
 
     cfg = head["config"]
-    print(f"Embedded {model_path} ({head['bits']}-bit, group {head['group']}) into {out}")
+    print(f"Embedded {paths.short(model_path)} ({head['bits']}-bit, group {head['group']}) into {paths.short(out)}")
     print(f"  {cfg['n_layer']} layers, {cfg['n_embd']} dim, context {cfg['block_size']}, "
           f"vocab {cfg['vocab_size']}")
     print(f"  page size: {os.path.getsize(out):,} bytes")

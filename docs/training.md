@@ -1,0 +1,104 @@
+# Training
+
+```bash
+py corpus/make_corpus.py
+py train.py --preset small --block_size 384 --fresh --dropout 0.0 --steps 30000 --select_by train
+```
+
+The corpus lands in `build/`, the checkpoint in `build/model_full.pt`, and the export
+in `models/` under the next free version.
+
+## Five settings that silently ruin it
+
+Each of these leaves loss, spelling and formatting looking healthy while the model is
+quietly broken.
+
+**1. Validation loss is a bad stopping signal.** A representative run:
+
+| step | train | val | arithmetic |
+|---|---|---|---|
+| 2000 | 0.4350 | 0.4519 | ~0% |
+| 10000 | 0.2544 | 0.3621 | — |
+| 20000 | 0.1928 | 0.4854 | 29% |
+
+Val loss bottoms early and then rises while the thing you actually want keeps
+improving — the copied digits are a few characters out of hundreds, so they barely
+move the loss. Selecting on val loss ends training with a half-formed copying
+circuit: that run scored **1 correct out of 180**. Use `--select_by train` and give
+it steps.
+
+**2. Learning rate too low silently disables copying.** At `lr 3e-4`: 95% spelling,
+100% format, healthy loss, and **0% recall**. It never formed the induction circuit.
+At `lr 1e-3` the circuit forms within ~1000 steps. Do not lower `--lr` much.
+
+**3. Dropout blocks the copying circuit.** At identical validation loss, `dropout 0.0`
+scored 31% recall and `dropout 0.1` scored 14%. Regularize with **more data** instead —
+the corpus is generated, so turn `--target_chars` up.
+
+**4. Small value pools teach guessing instead of reading.** With only ~20 colours in
+the corpus, guessing is a cheaper way to cut loss than copying from context. Every
+pool that matters needs to be large; `corpus/compose.py` builds thousands of values.
+
+**5. Repetition is what gets recited.** The hand-written text is repeated to fill the
+corpus, and how often decides whether the model quotes it. At 7 passes the
+generalization gap was +0.31; at 3 passes it was +0.11. `--composed` is the dial, and
+`make_corpus.py` prints the pass count and warns past 60.
+
+## Presets
+
+| preset | params | 8-bit export |
+|---|---|---|
+| tiny | 110K | ~145 KB |
+| small | 382K | ~509 KB |
+| medium | 855K | ~1.1 MB |
+| large | 2.7M | ~3.6 MB |
+
+### Bigger is worse on this corpus
+
+All three trained the same way on the same 2M characters:
+
+| | small_1.2 | medium_1.1 | large_1.0 |
+|---|---|---|---|
+| held-out loss | **0.59 bits/char** | 1.12 | 1.35 |
+| generalization gap | **+0.10** | +0.69 | +0.89 |
+| novelty (not recited) | **83%** | 74% | 53% |
+| verbatim copies | **12%**, 21 chars | 8%, 31 chars | 38%, 72 chars |
+| arithmetic overall | 29% | 25% | **32%** |
+
+Large is 3 points better at arithmetic and twice as bad at everything else: it
+recites almost a third of its replies out of the training text, 72 characters at a
+stretch, for seven times the download. The cause is data, not architecture: 2M
+characters over 2.7M parameters is under one character per parameter, where small
+sits at 5.2. The lever for a better model is `--target_chars` and more hand-written
+conversations, not a bigger preset.
+
+## Reading the benchmark
+
+```bash
+py benchmark.py small_1.2      # that exact export
+py benchmark.py small          # the highest small_*
+py benchmark.py                # the full-precision checkpoint
+```
+
+Watch `generalization gap` (large = memorizing) and `verbatim copies` (is it reciting
+the training text?). Short replies like "You are welcome." legitimately appear in
+training, so a nonzero copy rate is expected.
+
+Arithmetic is scored on 25 sums per operand size and operator — 225 generations — so
+treat a few points as noise. The sums and the sampling are both seeded from a
+constant, so the score is comparable between models and between runs, but it is
+still a sample.
+
+## Teaching it new things
+
+Edit `corpus/conversations.txt` — strict `▶…■` / `◀…■`, one turn per line, blank line
+between conversations — then rebuild and retrain.
+
+The two dials that matter are `--composed` (share generated fresh rather than
+repeated) and `--math` (share of that which is arithmetic). Hand-written text is what
+the model *knows*; generated text is what teaches it to *compose*. They compete for
+corpus share, and raising either costs the other.
+
+`--block_size` sets how much conversation fits in context; keep it larger than your
+longest exchange. Training resumes from `build/model_full.pt` by default — pass
+`--fresh` after changing the architecture or the character vocabulary.

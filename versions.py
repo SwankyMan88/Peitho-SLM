@@ -18,7 +18,9 @@ hand - the new export nests underneath rather than clobbering it:
 import os
 import re
 
-MODELS_DIR = "models"
+import paths
+
+MODELS_DIR = paths.MODELS
 NAME = re.compile(r"^(?P<base>.+)_(?P<version>\d+(?:\.\d+)*)\.txt$")
 
 

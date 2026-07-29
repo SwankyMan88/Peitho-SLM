@@ -14,7 +14,10 @@ The .js form registers itself on a global and calls a hook if one is waiting:
 
 import argparse
 import os
+import sys
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import paths
 import versions
 
 
@@ -57,7 +60,7 @@ def main():
         out = source[:-len(".txt")] + ".js"
         with open(out, "w", encoding="utf-8", newline="\n") as f:
             f.write(wrap(source))
-        print(f"  {source} -> {out} ({os.path.getsize(out):,} bytes)")
+        print(f"  {paths.short(source)} -> {paths.short(out)} ({os.path.getsize(out):,} bytes)")
 
 
 if __name__ == "__main__":

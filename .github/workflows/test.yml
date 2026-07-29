@@ -26,7 +26,7 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Corpus, training, export, pure-Python inference
-        run: python test_slm.py
+        run: python tests/test_slm.py
 
       - name: The page names it probes for still match the export naming
         run: |
@@ -39,7 +39,7 @@ jobs:
               major, minor = version[0], version[1] if len(version) > 1 else 0
               majors = int(re.search(r"const MAJORS = (\d+)", html).group(1))
               minors = int(re.search(r"const MINORS = (\d+)", html).group(1))
-              assert major <= majors and minor < minors,                   f"{base}_{versions.format_version(version)} is outside the range the page probes"
+              assert major <= majors and minor < minors, f"{base}_{versions.format_version(version)} is outside the probed range"
               print(f"  peitho.html would find {base}_{versions.format_version(version)}")
           EOF
 

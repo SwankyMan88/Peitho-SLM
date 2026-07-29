@@ -14,6 +14,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from model import GPT, START_MARK, USER_MARK, BOT_MARK, END_MARK, encode, decode
 from export import import_compressed
+import paths
 import versions
 
 HISTORY_PATH = "chat_history.json"
@@ -93,7 +94,7 @@ def load_full_checkpoint(path, device):
 
 def main():
     parser = argparse.ArgumentParser(description="Chat with the trained SLM from the terminal.")
-    parser.add_argument("--checkpoint", default="model_full.pt")
+    parser.add_argument("--checkpoint", default=paths.CHECKPOINT)
     parser.add_argument("--compressed", action="store_true",
                         help="Load from the compressed export instead of the full checkpoint.")
     parser.add_argument("--compressed_path", default="")

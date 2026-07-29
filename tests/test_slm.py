@@ -4,7 +4,7 @@ Runs on CPU in about a minute with a deliberately tiny model, so it can gate a
 commit. It is not a quality test - the model it trains is far too small to say
 anything - it tests that the pieces still fit together, which is what breaks.
 
-    py test_slm.py
+    py tests/test_slm.py
 """
 
 import os
@@ -14,13 +14,17 @@ import subprocess
 import sys
 import tempfile
 
-import arith
-import compose
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import paths
 import versions
 from model import START_MARK, USER_MARK, BOT_MARK, END_MARK, build_vocab, encode, decode
 
+sys.path.insert(0, paths.CORPUS)
+import arith
+import compose
+
 PY = sys.executable
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = paths.ROOT
 passed = failed = 0
 
 
@@ -43,14 +47,15 @@ def run(*args, cwd=HERE):
 
 def test_markers():
     """A literal end marker inside a turn would teach the model to stop mid-sentence."""
-    for path in ("conversations.txt",):
-        with open(os.path.join(HERE, path), encoding="utf-8") as f:
+    for path in (paths.CONVERSATIONS,):
+        with open(path, encoding="utf-8") as f:
             lines = [l.rstrip("\n") for l in f if l.strip()]
+        name = paths.short(path)
         stray = [l for l in lines if END_MARK in l[:-1]]
-        check(f"{path}: no end marker inside a turn", not stray,
+        check(f"{name}: no end marker inside a turn", not stray,
               f"{len(stray)} lines, first: {stray[0][:60] if stray else ''}")
         wrong = [l for l in lines if not l.startswith((USER_MARK, BOT_MARK))]
-        check(f"{path}: every line is a marked turn", not wrong,
+        check(f"{name}: every line is a marked turn", not wrong,
               f"{len(wrong)} lines, first: {wrong[0][:60] if wrong else ''}")
 
 
@@ -111,7 +116,7 @@ def test_pipeline():
     """The real thing, end to end, at a size that finishes quickly."""
     work = tempfile.mkdtemp(prefix="slm_test_")
     try:
-        code, out = run("make_corpus.py", "--target_chars", "60000",
+        code, out = run("corpus/make_corpus.py", "--target_chars", "60000",
                         "--train_out", os.path.join(work, "t.txt"),
                         "--heldout_out", os.path.join(work, "h.txt"))
         check("make_corpus runs", code == 0, out[-400:])
@@ -147,15 +152,13 @@ def test_pipeline():
             f.write("<!DOCTYPE html>\n<html><body><script>\nvar MODEL = {\n"
                     "    header:  null,\n    weights: '',\n    scales:  ''\n};\n"
                     "</script></body></html>\n")
-        code, out = run("make_html.py", "--model", export, "--template", template,
+        code, out = run("tools/make_html.py", "--model", export, "--template", template,
                         "--out", os.path.join(work, "page.html"))
         check("make_html bakes a page", code == 0, out[-400:])
         page = os.path.join(work, "page.html")
         if os.path.exists(page):
             with open(page, encoding="utf-8") as f:
                 html = f.read()
-            # The page may fetch models/ beside itself, but must never reach off
-            # the host: it has to keep working with no network at all.
             # The page may fetch models/ beside itself, but must never reach off
             # the host: it has to keep working with no network at all.
             offsite = ("src=\"http", "href=\"http", "fetch(\"http", "fetch('http",
