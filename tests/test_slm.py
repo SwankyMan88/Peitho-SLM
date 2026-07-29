@@ -7,6 +7,7 @@ anything - it tests that the pieces still fit together, which is what breaks.
     py tests/test_slm.py
 """
 
+import ast
 import os
 import random
 import shutil
@@ -57,6 +58,41 @@ def test_markers():
         wrong = [l for l in lines if not l.startswith((USER_MARK, BOT_MARK))]
         check(f"{name}: every line is a marked turn", not wrong,
               f"{len(wrong)} lines, first: {wrong[0][:60] if wrong else ''}")
+
+
+OURS = ("paths", "versions", "model", "export", "arith", "compose")
+
+
+def test_modules_are_imported():
+    """Catch `paths.short(...)` in a file that never imported paths.
+
+    A missing import of our own module only fails when that line runs, which for
+    a print at the end of a script means a green local run and a red CI one."""
+    for folder in (".", "corpus", "tools", "tests"):
+        here = os.path.join(paths.ROOT, folder)
+        for name in sorted(os.listdir(here)):
+            if not name.endswith(".py"):
+                continue
+            path = os.path.join(here, name)
+            tree = ast.parse(open(path, encoding="utf-8").read())
+            imported = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imported.update(a.asname or a.name.split(".")[0] for a in node.names)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    imported.add(node.module.split(".")[0])
+            used = {n.value.id for n in ast.walk(tree)
+                    if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)}
+            # A name the file assigns is its own variable, not our module:
+            # standalone.py's `model` holds a Model instance.
+            local = {n.id for n in ast.walk(tree)
+                     if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
+            local |= {a.arg for n in ast.walk(tree)
+                      if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                      for a in n.args.args}
+            missing = sorted((used & set(OURS)) - imported - local)
+            check(f"{paths.short(path)}: every module it uses is imported", not missing,
+                  f"uses {', '.join(missing)} without importing it" if missing else "")
 
 
 def test_vocab_round_trip():
@@ -173,7 +209,9 @@ def test_pipeline():
 
 
 def main():
-    print("Checking the corpus sources")
+    print("Checking the source files")
+    test_modules_are_imported()
+    print("\nChecking the corpus sources")
     test_markers()
     test_vocab_round_trip()
     test_arithmetic_is_correct()

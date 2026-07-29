@@ -56,7 +56,12 @@ Things that landed since the models were published:
 
 ### Verified
 
-`tests/test_slm.py` — 26 checks, corpus through training, export, pure-Python
+`tests/test_slm.py` — 41 checks, corpus through training, export, pure-Python
 inference and page baking — passes from the new layout, as do `benchmark.py`,
 `chat.py`, `standalone.py`, both `tools/` scripts, and the browser page with all three
 models offered and loading.
+
+The suite also now refuses a file that uses one of our own modules without
+importing it. That mistake only fails when the offending line runs, so a print at
+the end of a script can pass locally and break in CI - which is exactly how
+`tools/make_html.py` shipped calling `paths.short()` with no `import paths`.
