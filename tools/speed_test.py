@@ -6,10 +6,14 @@ does fewer steps but more work per step.
 """
 
 import argparse
+import os
+import sys
 import time
 
 import torch
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import paths
 from model import GPT, GPTConfig, build_vocab, encode
 from train import get_batch, make_optimizer, PRESETS
 
@@ -53,7 +57,7 @@ def measure(text, preset, block, batch, steps, compile_model, device):
 
 def main():
     p = argparse.ArgumentParser(description="Time training throughput.")
-    p.add_argument("--data", default="training.txt")
+    p.add_argument("--data", default=paths.TRAINING)
     p.add_argument("--steps", type=int, default=60)
     p.add_argument("--preset", default="medium")
     p.add_argument("--compile", action="store_true", help="Also try torch.compile.")

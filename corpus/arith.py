@@ -313,8 +313,13 @@ AGAIN_LEAD = ["Another way to see it. ", "Same answer, different route. ",
 
 
 def operands(rng, op):
-    """Small numbers mostly, because the working has to fit in the context."""
-    size = rng.choices([1, 2, 3], weights=[35, 45, 20])[0]
+    """Weighted towards two and three digits.
+
+    One-digit sums have only ~81 combinations per operator, so a corpus made mostly
+    of them repeats the same problem hundreds of times and teaches the answer rather
+    than the method. The carries in a three-digit sum are where extra capacity has
+    something to buy."""
+    size = rng.choices([1, 2, 3], weights=[20, 40, 40])[0]
     lo, hi = max(1, 10 ** (size - 1)), 10 ** size - 1
     lhs, rhs = rng.randint(lo, hi), rng.randint(lo, hi)
     if op == "-" and rng.random() < 0.85:

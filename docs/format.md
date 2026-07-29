@@ -1,5 +1,9 @@
 # The export format
 
+> This is the practical tour. For a normative description precise enough to port
+> from, with conformance vectors to check your work against, see
+> [spec.md](spec.md).
+
 `models/<base>_<version>.txt` is exactly 3 lines:
 
 ```

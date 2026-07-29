@@ -28,18 +28,22 @@ def load_ids(path, stoi, device):
 
     Encoding megabytes one character at a time in Python costs several seconds per
     run for a result that only changes when the file does."""
-    cache = path + ".ids.npy"
+    cache = path + ".ids.npz"
     signature = np.array([os.path.getmtime(path), os.path.getsize(path), len(stoi)])
+
+    # int16 in its own array, not concatenated onto a float64 signature: at one
+    # character per element that difference is 2 bytes against 8, which is 24 MB
+    # rather than 112 MB on a corpus of a few million characters.
     if os.path.exists(cache):
-        stored = np.load(cache, allow_pickle=False)
-        if stored.shape[0] > 3 and np.array_equal(stored[:3].astype(np.float64), signature):
-            return torch.from_numpy(stored[3:].astype(np.int16)).to(device)
+        with np.load(cache, allow_pickle=False) as stored:
+            if np.array_equal(stored["signature"], signature):
+                return torch.from_numpy(stored["ids"]).to(device)
 
     with open(path, "r", encoding="utf-8") as f:
         text = "".join(c for c in f.read() if c in stoi)
-    ids = np.fromiter((stoi[c] for c in text), dtype=np.int64, count=len(text))
-    np.save(cache, np.concatenate([signature, ids]), allow_pickle=False)
-    return torch.from_numpy(ids.astype(np.int16)).to(device)
+    ids = np.fromiter((stoi[c] for c in text), dtype=np.int16, count=len(text))
+    np.savez(cache, signature=signature, ids=ids)
+    return torch.from_numpy(ids).to(device)
 
 
 def get_batch(data, block_size, batch_size, device):

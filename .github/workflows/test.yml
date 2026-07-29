@@ -28,6 +28,9 @@ jobs:
       - name: Corpus, training, export, pure-Python inference
         run: python tests/test_slm.py
 
+      - name: Every decoder agrees with the conformance vectors
+        run: python tests/test_conformance.py
+
       - name: The page names it probes for still match the export naming
         run: |
           python - <<'EOF'
