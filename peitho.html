@@ -197,6 +197,15 @@
                 display: flex;
                 gap: 10px;
             }
+            /* Clear and Settings sit on their own line so the text box keeps the
+               full width. On a phone, four controls in one row left the input
+               barely wider than its placeholder. */
+            .tools {
+                display: flex;
+                justify-content: flex-end;
+                gap: 8px;
+                margin-top: 10px;
+            }
             input[type=text] {
                 flex: 1;
                 min-width: 0;
@@ -204,8 +213,11 @@
                 color: var(--ink);
                 border: 1px solid var(--edge);
                 border-radius: 11px;
-                padding: 11px 13px;
-                font: inherit;
+                padding: 12px 13px;
+                font-family: inherit;
+                /* Never below 16px: iOS Safari zooms the whole page in on focus
+                   when a field's text is smaller than that. */
+                font-size: max(16px, 1rem);
             }
             input[type=text]:focus {
                 outline: none;
@@ -226,19 +238,22 @@
                 opacity: 0.4;
                 cursor: default;
             }
-            button.quiet {
+            /* Small, quiet and out of the way, but still a comfortable tap. */
+            .tools button {
                 background: transparent;
                 color: var(--dim);
                 border: 1px solid var(--edge);
+                border-radius: 9px;
+                padding: 7px 13px;
+                min-height: 34px;
+                font-size: 0.8rem;
                 font-weight: 400;
+                letter-spacing: 0.04em;
             }
-            button.icon {
-                background: transparent;
-                color: var(--dim);
-                border: 1px solid var(--edge);
-                padding: 11px 14px;
-                font-size: 1rem;
+            .tools button.icon {
+                font-size: 0.95rem;
                 line-height: 1;
+                padding: 7px 11px;
             }
             .panel {
                 position: relative;
@@ -389,8 +404,10 @@
                 <div class="row">
                     <input type="text" id="msg" placeholder="Say something…" autocomplete="off">
                     <button id="send">Send</button>
+                </div>
+                <div class="tools">
                     <button id="gear" class="icon" title="Settings" aria-label="Settings">&#9881;</button>
-                    <button id="clear" class="quiet">Clear</button>
+                    <button id="clear">Clear</button>
                 </div>
             </div>
         </div>
