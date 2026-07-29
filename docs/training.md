@@ -1,11 +1,11 @@
 # Training
 
 ```bash
-py corpus/make_corpus.py
-py train.py --preset small --block_size 384 --fresh --dropout 0.0 --steps 30000 --select_by train
+py corpus/make_corpus.py --target_chars 20000000 --composed 0.95 --math 0.30
+py train.py --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
 ```
 
-The corpus lands in `build/`, the checkpoint in `build/model_full.pt`, and the export
+The corpus lands in `build/`, the checkpoint in `build/`, and the export
 in `models/` under the next free version.
 
 ## Five settings that silently ruin it
@@ -46,37 +46,59 @@ generalization gap was +0.31; at 3 passes it was +0.11. `--composed` is the dial
 
 ## Presets
 
-| preset | params | 8-bit export |
-|---|---|---|
-| tiny | 110K | ~145 KB |
-| small | 382K | ~509 KB |
-| medium | 855K | ~1.1 MB |
-| large | 2.7M | ~3.6 MB |
-
-### Bigger is worse on this corpus
-
-All three trained the same way on the same 2M characters:
-
-| | small_1.2 | medium_1.1 | large_1.0 |
+| preset | params | 8-bit export | corpus for 5+ chars/param |
 |---|---|---|---|
+| tiny | 110K | ~145 KB | 0.6M |
+| small | 382K | ~509 KB | 2M |
+| medium | 855K | ~1.1 MB | 4.3M |
+| large | 2.7M | ~3.6 MB | 14M |
+
+The last column is the one that decides whether a preset is worth using. Train a
+preset on less than that and it will memorize instead of generalizing.
+
+### Size only helps if the corpus grows with it
+
+The same three presets, trained identically, on two different corpus sizes. On 2M
+characters, bigger was *worse*:
+
+| on 2M characters | small | medium | large |
+|---|---|---|---|
+| chars per parameter | 5.2 | 2.3 | **0.72** |
 | held-out loss | **0.59 bits/char** | 1.12 | 1.35 |
 | generalization gap | **+0.10** | +0.69 | +0.89 |
-| novelty (not recited) | **83%** | 74% | 53% |
-| verbatim copies | **12%**, 21 chars | 8%, 31 chars | 38%, 72 chars |
-| arithmetic overall | 29% | 25% | **32%** |
+| verbatim copies | 12% | 8% | **38%**, 72 chars at a stretch |
+| arithmetic overall | 29% | 25% | 32% |
 
-Large is 3 points better at arithmetic and twice as bad at everything else: it
-recites almost a third of its replies out of the training text, 72 characters at a
-stretch, for seven times the download. The cause is data, not architecture: 2M
-characters over 2.7M parameters is under one character per parameter, where small
-sits at 5.2. The lever for a better model is `--target_chars` and more hand-written
-conversations, not a bigger preset.
+At 0.72 characters per parameter, memorizing the corpus is a cheaper way for large
+to cut loss than learning anything, so it did. On 20M characters the same three
+runs invert completely:
+
+| on 20M characters | small_1.3 | medium_1.2 | large_1.1 |
+|---|---|---|---|
+| chars per parameter | 52 | 23 | 7.2 |
+| held-out loss | 0.37 bits/char | 0.36 | **0.36** |
+| generalization gap | **+0.018** | +0.029 | +0.042 |
+| verbatim copies | 12% | 16% | **8%** |
+| arithmetic overall | 25% | 65% | **83%** |
+| 3-digit addition | 16% | 80% | **100%** |
+| 3-digit subtraction | 0% | 28% | **76%** |
+
+Arithmetic goes 25 -> 65 -> 83, and large now recites *less* than small. Held-out
+loss improved by a third across the board, because none of the three can afford to
+memorize 20M characters.
+
+Small got slightly worse at arithmetic (29% -> 25%) and that is not a regression in
+training: the operand mix moved towards two and three digits, so there are fewer
+trivial one-digit sums to get right for free. 382K parameters cannot hold the carry
+procedure. That is what "bigger is better" actually means here - the capacity buys
+carries, and only if there is enough unique text that memorizing is not the cheaper
+option.
 
 ## Reading the benchmark
 
 ```bash
-py benchmark.py small_1.2      # that exact export
-py benchmark.py small          # the highest small_*
+py benchmark.py large_1.1      # that exact export
+py benchmark.py large          # the highest large_*
 py benchmark.py                # the full-precision checkpoint
 ```
 

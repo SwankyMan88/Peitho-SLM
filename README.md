@@ -18,33 +18,37 @@ peitho: Anything that happened recently, long chains of reasoning, and arithmeti
         check it.
 ```
 
-382,272 parameters, 3 layers, 96 dimensions wide, a 384-character context — roughly a
-millionth the size of the models people usually mean. It holds a short conversation,
-composes sentences it has never seen, and works arithmetic out step by step. It also
-gets things wrong confidently, which is the part to watch.
+Three sizes, from 382K parameters to 2.7M — roughly a millionth to a hundred
+thousandth the size of the models people usually mean. They hold a short
+conversation, compose sentences they have never seen, and work arithmetic out step by
+step. They also get things wrong confidently, which is the part to watch.
 
-| | |
-|---|---|
-| held-out loss | 0.59 bits/char |
-| spelling (real words) | 98% |
-| variety (distinct trigrams) | 87% |
-| novelty (not recited from training) | 83% |
-| arithmetic on unseen sums | 29% overall, 67% on single digits |
-| export size | 509,552 bytes, lossless against the checkpoint |
+| | small_1.3 | medium_1.2 | large_1.1 |
+|---|---|---|---|
+| parameters | 382K | 855K | 2.7M |
+| export size | **509 KB** | 1.1 MB | 3.6 MB |
+| held-out loss | 0.37 bits/char | 0.36 | 0.36 |
+| spelling (real words) | 99% | 98% | 99% |
+| novelty (not recited) | 78% | 75% | 76% |
+| arithmetic on unseen sums | 25% | 65% | **83%** |
+| 3-digit addition | 16% | 80% | **100%** |
+
+Use **large** if you can spare the download and **small** if the weights have to be
+pasted somewhere by hand — 509 KB is the size that fits in a text box.
 
 ## Quick start
 
 ```bash
 pip install -r requirements.txt
-py corpus/make_corpus.py
-py train.py --preset small --block_size 384 --fresh --dropout 0.0 --steps 30000 --select_by train
+py corpus/make_corpus.py --target_chars 20000000 --composed 0.95 --math 0.30
+py train.py --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
 ```
 
 Then talk to it, measure it, or run it with no PyTorch at all:
 
 ```bash
 py chat.py                     # terminal chat, remembers the conversation
-py benchmark.py small          # what it is good and bad at
+py benchmark.py large          # what it is good and bad at
 py standalone.py               # the same model, standard library only
 py tests/test_slm.py           # the whole pipeline, about a minute
 ```
@@ -69,7 +73,7 @@ py -m http.server
 | `peitho.html` | The browser page. Carries no weights: it finds the exports in `models/` itself. |
 | `corpus/` | `conversations.txt` (hand-written — **edit this to change what it knows**), plus the generators: `compose.py` for varied English, `arith.py` for worked sums, `make_corpus.py` to assemble them. |
 | `tools/` | `make_html.py` bakes an export into a page that cannot fetch; `make_js_models.py` mirrors exports as `.js`; `speed_test.py` measures training throughput. |
-| `models/` | The exports. `small_1.2` is the one to use. |
+| `models/` | The exports. `large_1.1` is the best; `small_1.3` is the one that fits in a text box. |
 | `build/` | Everything regenerable — corpus, caches, checkpoints. Not in git. |
 | `docs/` | The detail. |
 

@@ -7,8 +7,8 @@ opens the smallest `small_*` it finds. Training a model is enough to make it app
 there is nothing to regenerate and nothing to edit.
 
 It probes rather than walking a version series, because a folder holding only
-`small_1.2` is perfectly normal and anything that stopped at the first gap would miss
-it. Nested versions (`small_1.2.1`) are not probed — rename one to a plain
+`small_1.3` alone is perfectly normal and anything that stopped at the first gap would
+miss it. Nested versions (`small_1.3.1`) are not probed — rename one to a plain
 `<major>.<minor>` to have it offered.
 
 ## It has to be served
@@ -30,11 +30,11 @@ A GitHub repo is a CDN. Tag a release and pin to it — branch URLs are cached f
 hours, tagged URLs are permanent:
 
 ```bash
-git tag v1.0.1 && git push origin v1.0.1
+git tag v1.2.0 && git push origin v1.2.0
 ```
 
 ```
-https://cdn.jsdelivr.net/gh/SwankyMan88/Peitho-SLM@v1.0.1/models/small_1.2.txt
+https://cdn.jsdelivr.net/gh/SwankyMan88/Peitho-SLM@v1.2.0/models/small_1.3.txt
 ```
 
 jsDelivr answers with `access-control-allow-origin: *`, so:
@@ -57,8 +57,8 @@ py tools/make_js_models.py
 ```
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/SwankyMan88/Peitho-SLM@v1.0.1/models/small_1.2.js"></script>
-<script>var m = window.PEITHO_MODELS["small_1.2"];</script>
+<script src="https://cdn.jsdelivr.net/gh/SwankyMan88/Peitho-SLM@v1.2.0/models/small_1.3.js"></script>
+<script>var m = window.PEITHO_MODELS["small_1.3"];</script>
 ```
 
 **Nothing outbound at all.** Then the weights have to be *in* the page. Give a copy of

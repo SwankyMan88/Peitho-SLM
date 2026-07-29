@@ -40,9 +40,9 @@ Anything that loads an export takes whichever form is convenient:
 
 | You type | You get |
 |---|---|
-| `small_1.2` | that exact export |
-| `small_1.2.txt` | same, filename form |
-| `models/small_1.2.txt` | same, full path |
+| `small_1.3` | that exact export |
+| `small_1.3.txt` | same, filename form |
+| `models/small_1.3.txt` | same, full path |
 | `small` | the highest `small_*` |
 | *(nothing)* | the most recent export of any name |
 
