@@ -191,6 +191,25 @@
                 text-transform: uppercase;
                 margin-bottom: 2px;
             }
+            /* A quiet tag beside the name, so a reply that was worked out is
+               marked as such even when the working itself is hidden. */
+            .who .thought-tag {
+                margin-left: 7px;
+                padding: 1px 6px;
+                border: 1px solid var(--edge);
+                border-radius: 999px;
+                color: var(--dim);
+                font-size: 0.9em;
+                letter-spacing: 0.08em;
+            }
+            .switch {
+                justify-content: space-between;
+            }
+            .switch input {
+                accent-color: var(--accent);
+                width: 16px;
+                height: 16px;
+            }
             .streaming .body::after {
                 content: "";
                 display: inline-block;
@@ -408,6 +427,11 @@
                     <h2>Model</h2>
                     <div class="picker" id="picker"></div>
                     <div class="note" id="note"></div>
+                    <div class="tune">
+                        <label class="switch">Show the working
+                            <input type="checkbox" id="working">
+                        </label>
+                    </div>
                     <h2>Sampling</h2>
                     <div class="tune">
                         <label>Temperature
@@ -761,6 +785,7 @@ let choices = [];
 let current = null;
 let loading = false;
 
+const painted = [];
 let model = null;
 let busy = false;
 let log = null;
@@ -794,27 +819,82 @@ function buildPrompt(text, block) {
     return [...head, ...kept, current].join("\n").slice(-block);
 }
 
-/* Everything before the think marker is working out. Kept in the same bubble so
-   the reply stays attached to what produced it. */
+/* The reply is what follows the think marker. The working before it is kept on the
+   element but shown only when the setting asks for it - it is the model talking to
+   itself, and most of the time a reader wants the answer.
+
+   Until the marker arrives there is no way to tell working from reply, so a model
+   that thinks gets an ellipsis rather than its working streamed into the answer and
+   then yanked back out. */
 function paint(bubble, text) {
+    bubble.raw = text;
     const at = text.indexOf(THINK);
-    if (at === -1) {
-        bubble.body.textContent = text;
-        return;
-    }
-    if (!bubble.thought) {
-        bubble.thought = document.createElement("span");
-        bubble.thought.className = "thought";
-        const label = document.createElement("span");
-        label.className = "label";
-        label.textContent = "thinking";
-        bubble.thought.append(label);
-        bubble.thought.append(document.createTextNode(""));
-        bubble.body.before(bubble.thought);
-    }
-    bubble.thought.lastChild.textContent = text.slice(0, at);
-    bubble.body.textContent = text.slice(at + THINK.length);
+    const worked = at !== -1;
+    const stillWorking = !worked && streaming(bubble) && thinks();
+    const working = worked ? text.slice(0, at) : (stillWorking ? text : "");
+    const said = worked ? text.slice(at + THINK.length) : (stillWorking ? "" : text);
+
+    tag(bubble, worked || stillWorking);
+    reveal(bubble, working);
+    bubble.body.textContent = stillWorking && !showWorking() ? "\u2026" : said;
 }
+
+function streaming(bubble) {
+    return !!bubble.div && bubble.div.classList.contains("streaming");
+}
+
+/* Whether the loaded model has the marker at all. Absent from its vocabulary, no
+   reply of its can ever contain one. */
+function thinks() {
+    return !!(model && model.stoi && model.stoi[THINK] !== undefined);
+}
+
+function showWorking() {
+    const box = el("working");
+    return !!box && box.checked;
+}
+
+function tag(bubble, wanted) {
+    if (wanted && !bubble.tag) {
+        bubble.tag = document.createElement("span");
+        bubble.tag.className = "thought-tag";
+        bubble.tag.textContent = "Thought";
+        bubble.who.append(bubble.tag);
+    }
+    if (bubble.tag) {
+        bubble.tag.hidden = !wanted;
+    }
+}
+
+function reveal(bubble, working) {
+    if (working && showWorking()) {
+        if (!bubble.thought) {
+            bubble.thought = document.createElement("span");
+            bubble.thought.className = "thought";
+            const label = document.createElement("span");
+            label.className = "label";
+            label.textContent = "thinking";
+            bubble.thought.append(label);
+            bubble.thought.append(document.createTextNode(""));
+            bubble.body.before(bubble.thought);
+        }
+        bubble.thought.lastChild.textContent = working;
+        bubble.thought.hidden = false;
+    } else if (bubble.thought) {
+        bubble.thought.hidden = true;
+    }
+}
+
+/* Turning the setting on or off redraws what is already on screen, so the choice
+   applies to the whole conversation rather than only the next reply. */
+function repaintAll() {
+    for (const bubble of painted) {
+        paint(bubble, bubble.raw);
+    }
+    layout();
+}
+
+
 
 function addTurn(mine, text) {
     const empty = el("empty");
@@ -833,12 +913,19 @@ function addTurn(mine, text) {
     log.append(div);
     log.scrollTop = log.scrollHeight;
     layout();
-    return { div, body };
+    const bubble = { div, body, who, raw: text };
+    if (!mine) {
+        painted.push(bubble);
+    }
+    return bubble;
 }
 
 function finish(text, userText, bubble, started) {
     const ms = performance.now() - started;
     bubble.div.classList.remove("streaming");
+    if (text.trim()) {
+        paint(bubble, text);
+    }
     el("stats").textContent = text.length + " chars · " +
         (text.length / (ms / 1000)).toFixed(0) + " chars/sec";
     if (!text.trim()) {
@@ -1210,6 +1297,7 @@ function init() {
     });
     el("clear").onclick = () => {
         chatTurns = [];
+        painted.length = 0;
         log.innerHTML = '<div class="empty" id="empty">Say something to begin.</div>';
         el("stats").textContent = "";
         layout();
@@ -1228,6 +1316,7 @@ function init() {
     el("temp").oninput = function () {
         el("tempv").textContent = parseFloat(this.value).toFixed(2);
     };
+    el("working").onchange = repaintAll;
     el("topk").oninput = function () {
         el("topkv").textContent = this.value;
     };

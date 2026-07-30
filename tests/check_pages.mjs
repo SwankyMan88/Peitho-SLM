@@ -16,7 +16,8 @@ const THINK = "◇";
 /* A bubble is two elements the page writes into; that is all paint() touches. */
 function stubBubble() {
     const make = () => ({
-        textContent: "", className: "", lastChild: null,
+        textContent: "", className: "", lastChild: null, hidden: false,
+        classList: { contains: () => false, add() {}, remove() {}, toggle() {} },
         append(...kids) {
             this.children.push(...kids);
             this.lastChild = kids[kids.length - 1];
@@ -24,7 +25,7 @@ function stubBubble() {
         before() {},
         children: []
     });
-    return { body: make(), div: make() };
+    return { body: make(), div: make(), who: make() };
 }
 
 let failed = 0;
@@ -100,6 +101,29 @@ for (const path of PAGES) {
           JSON.stringify(bubble.body.textContent));
     check(`${path}: the marker is not shown`,
           !bubble.body.textContent.includes(THINK));
+
+    // The working is hidden unless the setting asks for it, and the turn is tagged.
+    bubble = stubBubble();
+    paint(bubble, `Tens: 40 + 30 = 70.${THINK}That comes to 84.`);
+    const tagged = bubble.who.children.some(k => k.className === "thought-tag"
+                                                 && k.textContent === "Thought");
+    check(`${path}: the turn is tagged Thought`, tagged,
+          JSON.stringify(bubble.who.children.map(k => k.textContent)));
+    check(`${path}: the working is hidden while the setting is off`,
+          !bubble.thought || bubble.thought.hidden === true,
+          bubble.thought ? `hidden=${bubble.thought.hidden}` : "no element");
+
+    // With it on, the working appears and holds only the part before the marker.
+    stub.checked = true;
+    bubble = stubBubble();
+    paint(bubble, `Tens: 40 + 30 = 70.${THINK}That comes to 84.`);
+    check(`${path}: the working shows when the setting is on`,
+          !!bubble.thought && bubble.thought.hidden === false,
+          bubble.thought ? `hidden=${bubble.thought.hidden}` : "no element");
+    check(`${path}: the working holds what preceded the marker`,
+          !!bubble.thought && bubble.thought.lastChild.textContent === "Tens: 40 + 30 = 70.",
+          bubble.thought ? JSON.stringify(bubble.thought.lastChild.textContent) : "");
+    stub.checked = false;
 }
 
 process.exit(failed ? 1 : 0);

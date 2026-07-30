@@ -126,10 +126,15 @@ one that isolates the format.
 
 Nothing needs a flag or a mode, because absence of the marker is the fallback:
 
-* **`peitho.html`** splits on the first `◇` and renders the working as a dim italic
-  *thinking* block above the reply. No marker, no block — the bubble looks exactly as
-  it always has, which is why models trained before `◇` existed still display
-  correctly.
+* **`peitho.html`** shows the reply and marks the turn **Thought** beside the name.
+  The working is hidden unless *Show the working* is ticked in the settings, which
+  redraws the whole conversation rather than only the next reply. No marker, no tag
+  and no block — the bubble looks exactly as it always has, which is why models
+  trained before `◇` existed still display correctly.
+
+  While a reply is still streaming there is no way to tell working from answer, so a
+  model that knows the marker shows an ellipsis rather than streaming its working
+  into the answer and then yanking it back out.
 * **`benchmark.py`** grades only what follows the marker, and reports how often the
   model thought first.
 * **`chat.py`** prints the working dimmed.
