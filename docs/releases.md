@@ -106,6 +106,14 @@ probed directly: 0 of 20 known things wrongly refused across plain, polite and c
 wordings, all six arithmetic kinds correct, honest refusals for the date, a name and
 an invented word.
 
+Also verified from a **fresh download** rather than a working copy, which caught a
+real fault: git does not track empty directories, so a clone had no `build/` and
+training died saving its checkpoint - after doing the work. `train.py` now creates its
+output directory, and the encoded-corpus cache moved into `build/` so that training
+from `data/training.txt` no longer drops a 40 MB file into a tracked folder. In a
+fresh unzip: training runs and exports, `standalone.py` answers with no PyTorch
+installed, `corpus/make_corpus.py` builds a corpus, and both suites pass.
+
 ## 1.3.0 — It shows its working
 
 A fourth model, `medium_think_1.0`, which works a problem out before answering:
