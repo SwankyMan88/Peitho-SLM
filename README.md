@@ -103,8 +103,7 @@ land and large ones to drop a carry. The visible working is what lets you catch 
 
 ## Documentation
 
-* [docs/training.md](docs/training.md) — how to train it, the five settings that
-  silently ruin it, why the bigger presets are worse, and how to read the benchmark.
+* [docs/training.md](docs/training.md) — how to train your own custom models from scratch
 * [docs/spec.md](docs/spec.md) — **the format specification**: everything needed to
   implement a decoder in any language, and a conformance kit to prove it correct.
 * [docs/format.md](docs/format.md) — the practical tour of the export, why 8 bits and
