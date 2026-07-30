@@ -23,18 +23,23 @@ thousandth the size of the models people usually mean. They hold a short
 conversation, compose sentences they have never seen, and work arithmetic out step by
 step. They also get things wrong confidently, which is the part to watch.
 
-| | small_1.3 | medium_1.2 | large_1.1 |
-|---|---|---|---|
-| parameters | 382K | 855K | 2.7M |
-| export size | **509 KB** | 1.1 MB | 3.6 MB |
-| held-out loss | 0.37 bits/char | 0.36 | 0.36 |
-| spelling (real words) | 99% | 98% | 99% |
-| novelty (not recited) | 78% | 75% | 76% |
-| arithmetic on unseen sums | 25% | 65% | **83%** |
-| 3-digit addition | 16% | 80% | **100%** |
+| | small_1.3 | medium_1.2 | large_1.1 | medium_think_1.0 |
+|---|---|---|---|---|
+| parameters | 382K | 855K | 2.7M | 855K |
+| export size | **509 KB** | 1.1 MB | 3.6 MB | 1.1 MB |
+| spelling (real words) | 99% | 98% | 99% | 100% |
+| arithmetic on unseen sums | 25% | 65% | 83% | **88%** |
+| mean reply length | 141 | 129 | 149 | **54** |
+| verbatim copies | 12% | 16% | 8% | 16% |
+| works out loud first | no | no | no | **yes** |
 
-Use **large** if you can spare the download and **small** if the weights have to be
-pasted somewhere by hand — 509 KB is the size that fits in a text box.
+Use **large** if you can spare the download, **small** if the weights have to be
+pasted somewhere by hand — 509 KB is the size that fits in a text box — and
+**medium_think** for short answers with the working shown separately.
+
+The arithmetic column is not a like-for-like comparison of the presets: `medium_think`
+was trained on a corpus with far more arithmetic in it, and a no-thinking model on that
+same corpus scores 86%. See [docs/thinking.md](docs/thinking.md).
 
 ## Quick start
 
@@ -71,9 +76,9 @@ py -m http.server
 | `benchmark.py` | Language, format, spelling, variety, novelty, copying, arithmetic, export cost. |
 | `versions.py`, `paths.py` | Where exports are named and where everything lives. |
 | `peitho.html` | The browser page. Carries no weights: it finds the exports in `models/` itself. |
-| `corpus/` | `conversations.txt` (hand-written — **edit this to change what it knows**), plus the generators: `compose.py` for varied English, `arith.py` for worked sums, `make_corpus.py` to assemble them. |
+| `corpus/` | `conversations.txt` (hand-written — **edit this to change what it knows**), plus the generators: `compose.py` for varied English, `arith.py` for worked sums, `thinking.py` for turns that work something out before answering, `make_corpus.py` to assemble them. |
 | `tools/` | `make_html.py` bakes an export into a page that cannot fetch; `make_js_models.py` mirrors exports as `.js`; `speed_test.py` measures training throughput. |
-| `models/` | The exports. `large_1.1` is the best; `small_1.3` is the one that fits in a text box. |
+| `models/` | The exports. `large_1.1` writes best, `small_1.3` fits in a text box, `medium_think_1.0` shows its working. |
 | `build/` | Everything regenerable — corpus, caches, checkpoints. Not in git. |
 | `docs/` | The detail. |
 
@@ -81,7 +86,7 @@ py -m http.server
 
 Nothing is hard-coded. The page contains no arithmetic — no `eval`, no digit parsing,
 no lookup table — and there is nothing to retrieve from the weights either, because
-every problem in a 2M-character corpus is a different one. What the model learned is a
+almost every problem in a 20M-character corpus is a different one. What the model learned is a
 *method*, from examples like these:
 
 ```
@@ -111,6 +116,8 @@ land and large ones to drop a carry. The visible working is what lets you catch 
   not 4, and the conversation markers.
 * [docs/hosting.md](docs/hosting.md) — the browser page, serving exports over jsDelivr,
   and getting a model into a sandbox that cannot fetch.
+* [docs/thinking.md](docs/thinking.md) — the working-then-answer format, what it
+  measured, and what it costs. **Experimental, on the `thinking` branch.**
 * [docs/releases.md](docs/releases.md) — what changed, release by release.
 
 ## License

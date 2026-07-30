@@ -66,7 +66,11 @@ def answer_text(rng, op, lhs, rhs):
 
 
 def sum_turn(rng):
-    """(user asks a sum, working, short answer)"""
+    """(user asks a sum, working, short answer, the same turn without thinking)
+
+    With thinking off, the working *is* the reply - it already ends on the number,
+    which is what the old corpus did and why arithmetic worked at all. Keeping the
+    short answer instead would leave a bare total with nothing to copy it from."""
     while True:
         op = rng.choices(["+", "-", "*", "/"], weights=[35, 30, 25, 10])[0]
         lhs, rhs = arith.operands(rng, op)
@@ -75,7 +79,8 @@ def sum_turn(rng):
             break
     shown = f"{lhs} {op} {rhs}" if rng.random() < 0.5 else f"{lhs}{op}{rhs}"
     question = rng.choice(arith.WORDING).format(p=shown)
-    return question, rng.choice(worked), answer_text(rng, op, lhs, rhs)
+    working = rng.choice(worked)
+    return question, working, answer_text(rng, op, lhs, rhs), working
 
 
 def topic_of(rng, prompt):
@@ -95,13 +100,17 @@ def plan(rng, prompt):
 
 
 def chat_turn(rng):
-    """(user says something, a plan, the reply) from a composed exchange."""
+    """(user says something, a plan, the reply, the same turn without thinking)
+
+    Here it is the other way round: the plan is not an answer, so with thinking off
+    the reply stands alone and the plan is dropped. Which half survives depends on
+    which half answers the question - that is the whole rule."""
     prompt, reply = compose.dialogue(rng)[0]
-    return prompt, plan(rng, prompt), reply
+    return prompt, plan(rng, prompt), reply, reply
 
 
 def conversation(rng, sums=0.7):
-    """[(user, thought, reply), ...] - mostly sums, since that is what working suits."""
+    """[(user, thought, reply, plain), ...] - mostly sums, which is what working suits."""
     turns = []
     for _ in range(rng.choices([1, 2, 3], weights=[55, 32, 13])[0]):
         turns.append(sum_turn(rng) if rng.random() < sums else chat_turn(rng))
@@ -110,9 +119,10 @@ def conversation(rng, sums=0.7):
 
 if __name__ == "__main__":
     rng = random.Random(5)
-    for _ in range(8):
-        for user, thought, reply in conversation(rng):
-            print(f"  you:      {user}")
-            print(f"  thinking: {thought}")
-            print(f"  peitho:   {reply}")
+    for _ in range(6):
+        for user, thought, reply, plain in conversation(rng):
+            print(f"  you:            {user}")
+            print(f"  thinking:       {thought}")
+            print(f"  peitho:         {reply}")
+            print(f"  without think:  {plain}")
         print()

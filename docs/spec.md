@@ -161,8 +161,9 @@ draw from probabilities
 
 ### Conversation markers
 
-Four characters that are not on any keyboard, so they can never collide with typed
-text:
+Five characters that are not on any keyboard, so they can never collide with typed
+text. The first four are always present; the fifth appears only in models trained to
+work something out before answering:
 
 | Name | Char | Code point | Meaning |
 |---|---|---|---|
@@ -170,9 +171,22 @@ text:
 | user | `▶` | U+25B6 | a line the person said |
 | bot | `◀` | U+25C0 | a line the model said |
 | end | `■` | U+25A0 | end of turn — **stop generating** |
+| think | `◇` | U+25C7 | optional: the working stops here, a short reply follows |
 
 A turn is marker + text + end marker, one per line. Prompt the model with
 `◈\n▶your text■\n◀` and stop when it emits `■`.
+
+Some models put their working first and end it with `◇`:
+
+```
+◀Tens: 40 + 30 = 70. Ones: 6 + 8 = 14. Add those up: 84.◇That comes to 84.■
+```
+
+`◇` is **not** a stop character — generation continues past it to `■`. A reader that
+splits on the first `◇` gets (working, reply); one that ignores it prints both, which
+is harmless. Since `vocab` lists every character a model knows, a decoder can tell
+whether an export uses it: if `◇` is absent from `vocab`, no reply will contain
+one.
 
 ## Proving a port correct
 

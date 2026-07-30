@@ -1,5 +1,92 @@
 # Releases
 
+## 1.3.0 — It shows its working
+
+A fourth model, `medium_think_1.0`, which works a problem out before answering:
+
+```
+you:      What is 148 + 267?
+thinking: 267 is 3 short of 270. 148 + 270 = 418, then give back the 3: 415.
+peitho:   That gives 415.
+```
+
+A new marker, `◇` (U+25C7), ends the working; what follows is the reply. Nothing about
+the network changed — no extra pass, no second model, no special handling at
+inference. The working is still generated one character at a time and still conditions
+everything after it. The marker only tells a reader where to fold.
+
+**Every other model is unaffected.** One trained before `◇` existed cannot emit it, so
+a reply with no marker renders exactly as it always has. That is why all four sit in
+the same folder and the same page with no flag anywhere.
+
+### What it buys, measured properly
+
+Two `medium` models trained on corpora holding the *same* conversations, differing
+only in whether the working is thought or spoken:
+
+| | medium_think_1.0 | the same corpus, no thinking |
+|---|---|---|
+| arithmetic (225 fixed sums) | 88% | 86% |
+| mean reply length | **54 chars** | 98 chars |
+| verbatim copies | **16%** | 36% |
+| novelty | 66% | 65% |
+| spelling / variety | 100% / 95% | 99% / 86% |
+
+**Arithmetic is a wash** — 88 against 86 is four or five sums out of 225. Thinking
+reorganises information the old format already carried; it does not add any. What it
+buys is replies at half the length and less than half the verbatim copying.
+
+An earlier reading of this was wrong and is worth recording. Thinking-medium scoring
+88% where `medium_1.2` scores 65% looked like a large win for the format; it is not.
+That comparison changed the corpus at the same time — the new one is roughly 70% sums
+by construction against 28% arithmetic in the released one. More arithmetic exposure
+is what moved the number, and a no-thinking model on the same corpus reaches 86%. The
+same applies to a claim that it beat `large_1.1`. Change one thing at a time.
+
+### The share has to be consistent
+
+`--think` sets the fraction of generated conversations that think, and the middle is
+worse than either end:
+
+| `--think` | marker emitted on 40 sums | behaviour |
+|---|---|---|
+| 0.0 | 0/40 | the old format |
+| 0.30 | 32/40 | **leaks** — sometimes writes a plan with no marker, so an internal note prints as speech |
+| 1.0 | 40/40 | one convention, no leaks in 24 chat prompts |
+
+At 0.30 the model saw both conventions for the same kind of prompt and blended them.
+
+### Turning it off
+
+```bash
+py corpus/make_corpus.py --target_chars 20000000 --think 1.0                 # with
+py corpus/make_corpus.py --target_chars 20000000 --think 1.0 --no_thinking   # without
+```
+
+Both forms of every turn are built from one draw of the generator, so the two corpora
+hold the same sentences and differ only in format. Which half survives depends on
+which half answers: for a sum the working stays, because it ends on the number; for a
+chat turn the reply stays, because a plan is not an answer. Keeping the wrong side
+would either bake internal notes in as speech or leave a bare total with nothing to
+copy it from — the state that once scored 1 correct out of 180.
+
+### Also
+
+* `peitho.html` renders the working as a dim, foldable block and labels it *thinking*;
+  `benchmark.py` grades only what follows the marker and reports how often the model
+  thought first; `chat.py` prints the working dimmed.
+* [docs/thinking.md](thinking.md) documents the format, the measurements and the
+  confounds. [docs/spec.md](spec.md) records `◇` as optional and **not** a stop
+  character — a decoder can tell whether an export uses it by looking for `◇` in the
+  header's `vocab` string.
+* Model buttons read "Medium think 1.0" rather than "Medium_think 1.0".
+
+### Verified
+
+`tests/test_slm.py` 44 checks and `tests/test_conformance.py` 25 checks, both green.
+In the browser: the thinking model renders its working and answers `148 + 267` as 415,
+and a released model in the same session renders with no thinking block at all.
+
 ## 1.2.1 — Bigger is finally better
 
 Released together with 1.2.0, whose tag carries the same models. Three new exports,

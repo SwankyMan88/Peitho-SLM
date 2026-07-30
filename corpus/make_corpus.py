@@ -46,16 +46,25 @@ def load_pairs(path):
     return pairs
 
 
-def thinking_conversation(rng):
+def thinking_conversation(rng, thinking_on=True):
     """Turns that work something out, then say the short answer - see thinking.py.
 
+    Both forms of every turn come from one draw, so the two corpora are comparable:
+    same sentences, same sums, same wording, differing only in whether the working
+    is thought or spoken.
+
     The working goes between the bot marker and the think marker, so an interface
-    can fold it away and the reply on its own is what a person reads."""
-    lines = []
-    for prompt, thought, reply in thinking.conversation(rng):
-        lines += [USER_MARK + prompt + END_MARK,
-                  BOT_MARK + thought + THINK_MARK + reply + END_MARK]
-    return lines
+    can fold it away. With thinking off, whichever half actually answers the
+    question becomes the whole reply.
+
+    Returns (what to write, the other form) so the caller can size the corpus by the
+    thinking form whichever one it is writing."""
+    lines, plain = [], []
+    for prompt, thought, reply, without in thinking.conversation(rng):
+        asked = USER_MARK + prompt + END_MARK
+        lines += [asked, BOT_MARK + thought + THINK_MARK + reply + END_MARK]
+        plain += [asked, BOT_MARK + without + END_MARK]
+    return (lines, plain) if thinking_on else (plain, lines)
 
 
 def math_conversation(rng):
@@ -191,7 +200,7 @@ def vary_user(rng, line):
 
 
 def render(rng, blocks, target_chars, composed_share=0.0, math_share=0.0,
-           think_share=0.0):
+           think_share=0.0, thinking_on=True):
     """Fill to the target size, mixing repeated hand-written blocks with freshly
     generated ones.
 
@@ -205,12 +214,18 @@ def render(rng, blocks, target_chars, composed_share=0.0, math_share=0.0,
         order = list(blocks)
         rng.shuffle(order)
         for block in order:
+            measured = 0
             if composed_share and rng.random() < composed_share:
                 # The thinking share comes out of the generated stream, so raising
                 # it trades working-shown-in-the-reply for working-then-answer.
                 draw = rng.random()
                 if draw < think_share:
-                    lines = thinking_conversation(rng)
+                    # Whichever form is being written, the corpus is full when the
+                    # thinking form would have filled it. Measuring the stripped
+                    # form instead would fit more conversations into the same bytes,
+                    # and the two corpora would stop being comparable.
+                    lines, other = thinking_conversation(rng, thinking_on)
+                    measured = len(START_MARK + "\n" + "\n".join(other))
                 elif draw < think_share + math_share:
                     lines = math_conversation(rng)
                 else:
@@ -220,7 +235,7 @@ def render(rng, blocks, target_chars, composed_share=0.0, math_share=0.0,
             lines = [vary_user(rng, l) if l.startswith(USER_MARK) else l for l in lines]
             chunk = START_MARK + "\n" + "\n".join(lines)
             parts.append(chunk)
-            total += len(chunk) + 1
+            total += max(len(chunk), measured) + 1
             if total >= target_chars:
                 break
     return "\n".join(parts) + "\n"
@@ -242,6 +257,10 @@ def main():
                    help="Share of the corpus generated fresh by compose.py. This is the "
                         "part that is not repeated, so it is what teaches composing "
                         "rather than reciting.")
+    p.add_argument("--no_thinking", action="store_true",
+                   help="Write the same corpus without the thinking phase: whichever "
+                        "half of each turn answers the question becomes the whole "
+                        "reply. Same sentences, so the two are comparable.")
     p.add_argument("--think", type=float, default=0.0,
                    help="Share of the generated stream where the model works the answer "
                         "out first and marks the end of its working. Off by default.")
@@ -262,11 +281,12 @@ def main():
     held, train_blocks = blocks[:n_held], blocks[n_held:]
 
     unique = sum(len("\n".join(b)) for b in train_blocks)
+    thinking_on = not args.no_thinking
     train = render(rng, train_blocks, args.target_chars, args.composed, args.math,
-                   args.think)
+                   args.think, thinking_on)
     heldout = render(random.Random(args.seed + 1), held,
                      max(50_000, int(args.target_chars * 0.06)), args.composed, args.math,
-                     args.think)
+                     args.think, thinking_on)
 
     for path, text, label in ((args.train_out, train, "train"),
                               (args.heldout_out, heldout, "heldout")):
@@ -281,8 +301,8 @@ def main():
     print(f"hand-written text: {unique:,} unique chars filling {repeated_chars:,} "
           f"chars of corpus, so ~{passes} passes over it")
     print(f"generated text: {args.composed:.0%} of the corpus, effectively all unique, "
-          f"of which {args.math:.0%} is worked arithmetic and {args.think:.0%} thinks "
-          f"before answering")
+          f"of which {args.math:.0%} is worked arithmetic and {args.think:.0%} "
+          f"{'thinks before answering' if thinking_on else 'would think, stripped away'}")
     if passes > 60:
         print("  WARNING: the hand-written part is repeating heavily. Add conversations, "
               "or raise --composed so more of the corpus is fresh.")

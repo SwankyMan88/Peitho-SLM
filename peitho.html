@@ -752,7 +752,7 @@ class Peitho {
    refuses file:// for any sibling file - so opened straight off the disk the page
    says that rather than appearing broken. */
 const FOLDER = "models/";
-const BASES = ["tiny", "small", "medium", "large", "think"];
+const BASES = ["tiny", "small", "medium", "medium_think", "large"];
 const START_WITH = "small";   /* whichever base name to open with, if it is there */
 const MAJORS = 2;             /* how many major versions of each base to look for */
 const MINORS = 10;            /* and how many minor versions of each of those */
@@ -955,7 +955,9 @@ function shortName(file) {
     if (!match) {
         return file;
     }
-    return match[1].charAt(0).toUpperCase() + match[1].slice(1) + " " + match[2];
+    // "medium_think" is a base name, not a word: read it as two.
+    const base = match[1].replace(/_/g, " ");
+    return base.charAt(0).toUpperCase() + base.slice(1) + " " + match[2];
 }
 
 function describe(choice) {

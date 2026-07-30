@@ -116,10 +116,11 @@ still a sample.
 Edit `corpus/conversations.txt` — strict `▶…■` / `◀…■`, one turn per line, blank line
 between conversations — then rebuild and retrain.
 
-The two dials that matter are `--composed` (share generated fresh rather than
-repeated) and `--math` (share of that which is arithmetic). Hand-written text is what
-the model *knows*; generated text is what teaches it to *compose*. They compete for
-corpus share, and raising either costs the other.
+The dials that matter are `--composed` (share generated fresh rather than repeated),
+`--math` (share of that which is worked arithmetic) and `--think` (share that works
+something out before answering — see [thinking.md](thinking.md)). Hand-written text is
+what the model *knows*; generated text is what teaches it to *compose*. They compete
+for corpus share, and raising one costs the others.
 
 `--block_size` sets how much conversation fits in context; keep it larger than your
 longest exchange. Training resumes from `build/model_full.pt` by default — pass
