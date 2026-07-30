@@ -1,12 +1,23 @@
 # Training
 
+The corpus that the released models learned from is committed, so you can train
+without generating anything:
+
 ```bash
-py corpus/make_corpus.py --target_chars 20000000 --composed 0.95 --math 0.30
+py train.py --data data/training.txt --val_data data/heldout.txt     --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
+```
+
+To generate your own instead:
+
+```bash
+py corpus/make_corpus.py --target_chars 20000000 --composed 0.95 --think 1.0
 py train.py --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
 ```
 
-The corpus lands in `build/`, the checkpoint in `build/`, and the export
-in `models/` under the next free version.
+A generated corpus lands in `build/`, which is not in git because it changes every
+time anyone experiments. `py tools/publish_corpus.py` copies it to `data/` as the
+published one and records its hashes. The checkpoint goes to `build/`, and the export
+to `models/` under the next free version.
 
 ## Five settings that silently ruin it
 

@@ -43,10 +43,18 @@ same corpus scores 86%. See [docs/thinking.md](docs/thinking.md).
 
 ## Quick start
 
+The corpus is in the repository, so training needs nothing generated first:
+
 ```bash
 pip install -r requirements.txt
-py corpus/make_corpus.py --target_chars 20000000 --composed 0.95 --math 0.30
-py train.py --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
+py train.py --data data/training.txt --val_data data/heldout.txt --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
+```
+
+To build a corpus of your own instead — different size, different mix, your own
+hand-written conversations in `corpus/conversations.txt`:
+
+```bash
+py corpus/make_corpus.py --target_chars 20000000 --composed 0.95 --think 1.0
 ```
 
 Then talk to it, measure it, or run it with no PyTorch at all:
@@ -76,7 +84,8 @@ py -m http.server
 | `benchmark.py` | Language, format, spelling, variety, novelty, copying, arithmetic, export cost. |
 | `versions.py`, `paths.py` | Where exports are named and where everything lives. |
 | `peitho.html` | The browser page. Carries no weights: it finds the exports in `models/` itself. |
-| `corpus/` | `conversations.txt` (hand-written — **edit this to change what it knows**), plus the generators: `compose.py` for varied English, `arith.py` for worked sums, `thinking.py` for turns that work something out before answering, `make_corpus.py` to assemble them. |
+| `data/` | **The corpus the released models were trained on**, ~20M characters, plus its recipe and hashes. Train from this directly. |
+| `corpus/` | `conversations.txt` (hand-written — **edit this to change what it knows**), plus the generators: `talk.py` for conversation, `arith.py` for worked sums, `thinking.py` for turns that work something out first, `make_corpus.py` to assemble them. |
 | `tools/` | `make_html.py` bakes an export into a page that cannot fetch; `make_js_models.py` mirrors exports as `.js`; `speed_test.py` measures training throughput. |
 | `models/` | The exports. `large_1.1` writes best, `small_1.3` fits in a text box, `medium_think_1.0` shows its working. |
 | `build/` | Everything regenerable — corpus, caches, checkpoints. Not in git. |

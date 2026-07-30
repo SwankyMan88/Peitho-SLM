@@ -22,6 +22,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import arith
 import compose
+import talk
 
 # Said after the working, so the reply is short and the number is the point.
 ANSWERS = [
@@ -65,7 +66,18 @@ def answer_text(rng, op, lhs, rhs):
     return rng.choice(ANSWERS).format(n=total)
 
 
-def sum_turn(rng):
+def sum_turn(rng, others=0.3):
+    """An arithmetic turn: sometimes a plain sum, sometimes one of the other kinds.
+
+    Percentages, squares, three-term addition, rounding and word problems all come
+    from arith.other(). With thinking off the working is the reply, exactly as for a
+    plain sum, because it is the working that ends on the number."""
+    if rng.random() < others:
+        question, working, answer = arith.other(rng)
+        return question, working, answer, working
+    return plain_sum_turn(rng)
+
+def plain_sum_turn(rng):
     """(user asks a sum, working, short answer, the same turn without thinking)
 
     With thinking off, the working *is* the reply - it already ends on the number,
@@ -105,8 +117,8 @@ def chat_turn(rng):
     Here it is the other way round: the plan is not an answer, so with thinking off
     the reply stands alone and the plan is dropped. Which half survives depends on
     which half answers the question - that is the whole rule."""
-    prompt, reply = compose.dialogue(rng)[0]
-    return prompt, plan(rng, prompt), reply, reply
+    prompt, reply, thought = talk.dialogue(rng)[0]
+    return prompt, thought, reply, reply
 
 
 def conversation(rng, sums=0.7):

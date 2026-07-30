@@ -298,6 +298,123 @@ METHODS = {
     "/": [div_how_many, div_chunk, div_remainder, div_halve, div_small],
 }
 
+# ---------------------------------------------------------------- other problems
+# Everything above answers "lhs op rhs". These are the other questions people
+# actually ask, each solved by a method rather than stated. Every one returns
+# (question, working, short answer) and every number in the working is computed.
+
+PERCENTS = {5: "a twentieth", 10: "a tenth", 20: "a fifth", 25: "a quarter",
+            50: "half", 75: "three quarters"}
+
+
+def percent_of(rng):
+    pct = rng.choice(list(PERCENTS))
+    base = rng.choice([20, 40, 60, 80, 100, 120, 160, 200, 240, 300, 400, 500])
+    part = base * pct // 100
+    name = PERCENTS[pct]
+    if pct == 50:
+        working = f"{pct}% is {name}, so halve it: {base} / 2 = {part}."
+    elif pct == 75:
+        quarter = base // 4
+        working = (f"{pct}% is {name}. A quarter of {base} is {quarter}, "
+                   f"so three of them is {quarter} * 3 = {part}.")
+    else:
+        divisor = 100 // pct
+        working = (f"{pct}% is {name}, so divide by {divisor}: "
+                   f"{base} / {divisor} = {part}.")
+    question = rng.choice([f"What is {pct}% of {base}?", f"{pct}% of {base}?",
+                           f"Work out {pct} percent of {base}.",
+                           f"whats {pct}% of {base}"])
+    return question, working, f"{part}."
+
+
+def squared(rng):
+    n = rng.randint(11, 40)
+    tens, ones = n - n % 10, n % 10
+    working = (f"{n} squared is {n} * {n}. Split it: {n} * {tens} = {n * tens}, "
+               f"{n} * {ones} = {n * ones}. Add those: {n * tens} + {n * ones} "
+               f"= {n * n}.")
+    if not ones:
+        working = (f"{n} squared is {n} * {n}. {n} * {tens // 10} = {n * tens // 10}, "
+                   f"then ten times that: {n * n}.")
+    question = rng.choice([f"What is {n} squared?", f"{n} squared?",
+                           f"What is {n} times itself?", f"Square {n}."])
+    return question, working, f"{n * n}."
+
+
+def add_three(rng):
+    parts = [rng.randint(4, 60) for _ in range(3)]
+    running = parts[0] + parts[1]
+    total = running + parts[2]
+    working = (f"Take them in order: {parts[0]} + {parts[1]} = {running}, "
+               f"then {running} + {parts[2]} = {total}.")
+    listed = f"{parts[0]}, {parts[1]} and {parts[2]}"
+    question = rng.choice([f"Add {listed}.", f"What is {listed} added together?",
+                           f"{parts[0]} + {parts[1]} + {parts[2]}?",
+                           f"Total up {listed} for me."])
+    return question, working, f"{total}."
+
+
+def round_to(rng):
+    place, name = rng.choice([(10, "ten"), (100, "hundred")])
+    n = rng.randint(place // 2, 20 * place)
+    remainder = n % place
+    down = n - remainder
+    up = down + place
+    nearer = up if remainder * 2 >= place else down
+    half = place // 2
+    working = (f"{n} sits between {down} and {up}. It is {remainder} past {down}, "
+               f"and half of {place} is {half}, so it rounds "
+               f"{'up' if nearer == up else 'down'} to {nearer}.")
+    question = rng.choice([f"Round {n} to the nearest {name}.",
+                           f"What is {n} to the nearest {name}?",
+                           f"{n} rounded to the nearest {name}?"])
+    return question, working, f"{nearer}."
+
+
+SPENT = ["I had {a} and spent {b}. What is left?",
+         "I started with {a} and gave away {b}. How many now?",
+         "There were {a} and {b} went. What remains?",
+         "{a} in the box, {b} taken out. How many left?"]
+GAINED = ["I had {a} and got {b} more. How many now?",
+          "There were {a}, then {b} arrived. What is the total?",
+          "{a} already, plus {b}. How many altogether?"]
+
+
+def word_problem(rng):
+    """The same sums, wrapped the way a person would say them."""
+    if rng.random() < 0.55:
+        lhs = rng.randint(20, 400)
+        rhs = rng.randint(5, lhs - 1)
+        total = lhs - rhs
+        tens, ones = rhs - rhs % 10, rhs % 10
+        if ones and tens:
+            working = (f"Start from {lhs} and take {rhs} off. First the {tens}: "
+                       f"{lhs} - {tens} = {lhs - tens}. Then the {ones}: {total}.")
+        else:
+            working = f"{lhs} take away {rhs} leaves {total}."
+        question = rng.choice(SPENT).format(a=lhs, b=rhs)
+    else:
+        lhs, rhs = rng.randint(20, 300), rng.randint(5, 90)
+        total = lhs + rhs
+        tens, ones = rhs - rhs % 10, rhs % 10
+        if ones and tens:
+            working = (f"Add the {tens} first: {lhs} + {tens} = {lhs + tens}. "
+                       f"Then the {ones}: {total}.")
+        else:
+            working = f"{lhs} and {rhs} more makes {total}."
+        question = rng.choice(GAINED).format(a=lhs, b=rhs)
+    return question, working, f"{total}."
+
+
+OTHERS = [percent_of, squared, add_three, round_to, word_problem]
+
+
+def other(rng):
+    """(question, working, short answer) for one of the non lhs-op-rhs problems."""
+    return rng.choice(OTHERS)(rng)
+
+
 OPENERS = ["", "", "", "Let me work it out. ", "Sure. ", "Working it through. ",
            "One moment. ", "I can try that. ", "Right. "]
 CLOSERS = ["", "", "", "", " I think that is right.", " That is my working, anyway.",

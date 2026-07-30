@@ -27,6 +27,7 @@ from model import START_MARK, USER_MARK, BOT_MARK, END_MARK, THINK_MARK
 sys.path.insert(0, paths.CORPUS)
 import arith
 import compose
+import talk
 import thinking
 
 
@@ -169,13 +170,13 @@ def reframe(rng, block):
 
 
 def composed_conversation(rng):
-    """A freshly composed multi-turn conversation.
+    """A freshly generated multi-turn conversation - see talk.py.
 
     This is what teaches the model to build a sentence rather than recall one.
     Every one is effectively unique, so there is nothing here to memorize, and the
     subject persists across turns so continuing means reading the context."""
     lines = []
-    for prompt, reply in compose.dialogue(rng):
+    for prompt, reply, _ in talk.dialogue(rng):
         lines += [USER_MARK + prompt + END_MARK, BOT_MARK + reply + END_MARK]
     return lines
 
