@@ -33,7 +33,7 @@ hand-written.
 ### Two kinds of not knowing
 
 ```
-you: What is a florn?
+you: What is a duck?
 bot: No idea, honestly. It is not a word I have seen.
 
 you: What is the date today?

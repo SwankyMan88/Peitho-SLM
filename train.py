@@ -24,11 +24,14 @@ PRESETS = {
 
 
 def load_ids(path, stoi, device):
-    """Encode a text file to a device tensor, caching the result next to it.
+    """Encode a text file to a device tensor, caching the result in build/.
 
     Encoding megabytes one character at a time in Python costs several seconds per
     run for a result that only changes when the file does."""
-    cache = path + ".ids.npz"
+    # Kept in build/ rather than beside the corpus: caching next to
+    # data/training.txt would drop tens of megabytes into a tracked folder.
+    cache = os.path.join(paths.ensure_build(),
+                         os.path.basename(path) + ".ids.npz")
     signature = np.array([os.path.getmtime(path), os.path.getsize(path), len(stoi)])
 
     # int16 in its own array, not concatenated onto a float64 signature: at one
@@ -166,6 +169,7 @@ def main():
     with open(args.data, "r", encoding="utf-8") as f:
         text = f.read()
 
+    os.makedirs(args.out_dir, exist_ok=True)
     checkpoint_path = os.path.join(args.out_dir, args.checkpoint)
     resumed = False
 

@@ -3,6 +3,10 @@
 # standalone.py load, and what jsDelivr serves.
 build/
 
+# Encoded-corpus caches, wherever they land
+*.ids.npz
+*.ids.npy
+
 # The Khan Academy build carries its weights inline and is not published here.
 khan/
 
