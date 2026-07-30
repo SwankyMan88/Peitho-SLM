@@ -1,5 +1,111 @@
 # Releases
 
+## 1.4.0 — It says something, and admits what it does not know
+
+The generated conversation used to come from lyrical clause shapes over adjective and
+place pools, which produced grammatical English with nothing in it:
+
+```
+What makes the weightless terrace interesting is that salt works into everything
+eventually. Long before anyone noticed, an unlikely terrace waits over the rooftops.
+```
+
+Three clauses, nothing said - and the model wrote like that because that is what it
+was shown. `corpus/talk.py` replaces it.
+
+### Chat with content in it
+
+A short, plainly true predicate for ~150 everyday things, wrapped many ways:
+
+```
+you: whats a barometer
+bot: A barometer measures air pressure - that is the whole of it.
+
+you: Tell me about a gutter.
+bot: Mostly it takes rain off the roof.
+```
+
+The facts are deliberately dull - what a kettle does, what a hinge is for. Dull and
+true beats interesting and invented, and a model this size has no business asserting
+anything harder. Real knowledge still comes from `corpus/conversations.txt`, which is
+hand-written.
+
+### Two kinds of not knowing
+
+```
+you: What is a florn?
+bot: No idea, honestly. It is not a word I have seen.
+
+you: What is the date today?
+bot: I cannot see anything beyond what you type, so I do not know.
+
+you: What is my name?
+bot: I would be making that up. Better to say I do not know.
+```
+
+Invented words cover "never taught it". The second kind covers what actually comes
+up - the date, the news, your name, anything outside the conversation. Together they
+are 7% of replies; at 2.5% the model did not reliably learn the behaviour at all.
+
+### The thinking phase thinks about the question
+
+It used to fill a template from a pool the corpus had stopped using, so it collapsed
+to "They want the question. Keep it short." Now the thought is written where the turn
+type is known:
+
+```
+you:      What is the date today?
+thinking: They asked me what the date is. I do not have that built into me, so I
+          will be honest.
+bot:      No - I cannot see anything beyond what you type, so I do not know.
+```
+
+### Five more kinds of arithmetic
+
+Percentages, squares, three-term addition, rounding and word problems, each worked
+through rather than stated:
+
+| | |
+|---|---|
+| `What is 25% of 160?` | 25% is a quarter, so divide by 4: 160 / 4 = 40 |
+| `What is 14 squared?` | 14 * 10 = 140, 14 * 4 = 56. Add those: 196 |
+| `Round 168 to the nearest ten.` | 168 sits between 160 and 170. It is 8 past 160, and half of 10 is 5, so it rounds up to 170 |
+| `I had 240 and spent 85.` | First the 80: 240 - 80 = 160. Then the 5: 155 |
+
+They are 30% of arithmetic turns, so `+ - * /` coverage barely moves: the shipped
+model answers all six kinds correctly and still scores 86% on the fixed 225-sum
+benchmark. Every generator was checked against Python over 30,000 problems rather
+than trusted.
+
+### The corpus is in the repository
+
+`data/training.txt` and `data/heldout.txt` - 20M characters, 4.7 MB packed - with
+`data/README.md` recording the exact command and both SHA-256 hashes. A repository
+about training your own model should hand you data rather than a program that makes
+data.
+
+```bash
+py train.py --data data/training.txt --val_data data/heldout.txt     --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
+```
+
+`build/` stays out of git, since it changes whenever anyone experiments;
+`tools/publish_corpus.py` promotes a corpus to `data/` and rewrites the hashes.
+
+### Known limits
+
+It is a 855K-parameter character model, and it gets things wrong. In particular it
+will confidently describe a **real** word it was never taught - asked about a
+xylophone it borrowed the moon's predicate - because every unknown in training was an
+invented word, so it learned to judge by spelling rather than familiarity. The fix is
+to hold a slice of the facts out of training; it is not in this release.
+
+### Verified
+
+`tests/test_slm.py` 64 checks and `tests/test_conformance.py` 25 checks. Behaviour
+probed directly: 0 of 20 known things wrongly refused across plain, polite and casual
+wordings, all six arithmetic kinds correct, honest refusals for the date, a name and
+an invented word.
+
 ## 1.3.0 — It shows its working
 
 A fourth model, `medium_think_1.0`, which works a problem out before answering:
