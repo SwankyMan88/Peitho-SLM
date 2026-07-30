@@ -208,6 +208,23 @@ def test_pipeline():
         shutil.rmtree(work, ignore_errors=True)
 
 
+def test_pages_render():
+    """Run each page's reply renderer under node - see tests/check_pages.mjs."""
+    if subprocess.run(["node", "--version"], capture_output=True).returncode != 0:
+        print("  skip  page rendering: node is not installed")
+        return
+    runner = os.path.join(paths.ROOT, "tests", "check_pages.mjs")
+    result = subprocess.run(["node", runner], cwd=paths.ROOT, capture_output=True,
+                            text=True, encoding="utf-8", errors="replace")
+    for line in result.stdout.splitlines():
+        if line.startswith("ok "):
+            check(line[3:], True)
+        elif line.startswith("FAIL "):
+            check(line[5:], False)
+    if result.returncode != 0 and "FAIL" not in result.stdout:
+        check("page rendering ran", False, (result.stderr or "")[-300:])
+
+
 def main():
     print("Checking the source files")
     test_modules_are_imported()
@@ -218,6 +235,8 @@ def main():
     test_composition_is_varied()
     print("\nChecking export naming")
     test_versioning()
+    print("\nChecking the pages")
+    test_pages_render()
     print("\nChecking the whole pipeline")
     test_pipeline()
     print(f"\n{passed} passed, {failed} failed")
