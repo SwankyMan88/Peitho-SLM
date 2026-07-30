@@ -170,6 +170,27 @@
                 white-space: pre-wrap;
                 word-break: break-word;
             }
+            /* Working out, not a reply. Quiet, smaller, and set apart, because it is
+               there to be glanced at rather than read. */
+            .thought {
+                display: block;
+                white-space: pre-wrap;
+                word-break: break-word;
+                color: var(--dim);
+                font-size: 0.86rem;
+                font-style: italic;
+                border-left: 2px solid var(--edge);
+                padding-left: 9px;
+                margin-bottom: 7px;
+            }
+            .thought .label {
+                display: block;
+                font-size: 0.62rem;
+                font-style: normal;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                margin-bottom: 2px;
+            }
             .streaming .body::after {
                 content: "";
                 display: inline-block;
@@ -417,6 +438,7 @@
 
 
 const START = "◈", USER = "▶", BOT = "◀", END = "■";
+const THINK = "\u25c7";   /* the working stops here; a reply follows */
 
 const B85 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" +
             "!#$%&()*+-;<=>?@^_`{|}~";
@@ -730,7 +752,7 @@ class Peitho {
    refuses file:// for any sibling file - so opened straight off the disk the page
    says that rather than appearing broken. */
 const FOLDER = "models/";
-const BASES = ["tiny", "small", "medium", "large"];
+const BASES = ["tiny", "small", "medium", "medium_think", "large"];
 const START_WITH = "small";   /* whichever base name to open with, if it is there */
 const MAJORS = 2;             /* how many major versions of each base to look for */
 const MINORS = 10;            /* and how many minor versions of each of those */
@@ -770,6 +792,28 @@ function buildPrompt(text, block) {
     // START only when the opening of the conversation is still in view.
     const head = dropped ? [] : [START];
     return [...head, ...kept, current].join("\n").slice(-block);
+}
+
+/* Everything before the think marker is working out. Kept in the same bubble so
+   the reply stays attached to what produced it. */
+function paint(bubble, text) {
+    const at = text.indexOf(THINK);
+    if (at === -1) {
+        bubble.body.textContent = text;
+        return;
+    }
+    if (!bubble.thought) {
+        bubble.thought = document.createElement("span");
+        bubble.thought.className = "thought";
+        const label = document.createElement("span");
+        label.className = "label";
+        label.textContent = "thinking";
+        bubble.thought.append(label);
+        bubble.thought.append(document.createTextNode(""));
+        bubble.body.before(bubble.thought);
+    }
+    bubble.thought.lastChild.textContent = text.slice(0, at);
+    bubble.body.textContent = text.slice(at + THINK.length);
 }
 
 function addTurn(mine, text) {
@@ -864,7 +908,7 @@ function reply(userText) {
                     break;
                 }
                 text += ch;
-                bubble.body.textContent = text;
+                paint(bubble, text);
                 logits = model.step(id);
                 model.pos++;
                 n++;
@@ -875,7 +919,7 @@ function reply(userText) {
             }
         } catch (e) {
             console.error(e);
-            bubble.body.textContent = text + "  [error: " + e.message + "]";
+            paint(bubble, text + "  [error: " + e.message + "]");
             finish(text, userText, bubble, started);
             return;
         }
@@ -911,7 +955,9 @@ function shortName(file) {
     if (!match) {
         return file;
     }
-    return match[1].charAt(0).toUpperCase() + match[1].slice(1) + " " + match[2];
+    // "medium_think" is a base name, not a word: read it as two.
+    const base = match[1].replace(/_/g, " ");
+    return base.charAt(0).toUpperCase() + base.slice(1) + " " + match[2];
 }
 
 function describe(choice) {

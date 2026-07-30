@@ -61,9 +61,12 @@ Every turn is a marker, the text, then the end marker — one turn per line:
 | `USER_MARK` | `▶` U+25B6 | a line you said |
 | `BOT_MARK` | `◀` U+25C0 | a line the model said |
 | `END_MARK` | `■` U+25A0 | end of turn — **stop generating** |
+| `THINK_MARK` | `◇` U+25C7 | optional: the working stops here, a short reply follows |
 
 These are deliberately not on any keyboard, so they can never collide with typed
-text. The end marker is why replies stop when they are finished rather than at a
+text. `THINK_MARK` appears only in models trained with a thinking phase; a reply
+containing no `◇` is an ordinary reply, which is what makes the two interchangeable.
+See [thinking.md](thinking.md). The end marker is why replies stop when they are finished rather than at a
 character limit: `generate()` takes a `stop_id` and breaks as soon as it samples it.
 
 If you write your own turns, never put a literal `■` inside the text of a turn — the
