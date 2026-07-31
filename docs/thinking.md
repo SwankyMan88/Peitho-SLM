@@ -135,6 +135,12 @@ Nothing needs a flag or a mode, because absence of the marker is the fallback:
   While a reply is still streaming there is no way to tell working from answer, so a
   model that knows the marker shows an ellipsis rather than streaming its working
   into the answer and then yanking it back out.
+
+  The block needs its own `.thought[hidden] { display: none }` rule. `hidden` works
+  by a user-agent rule, and the author rule setting `display: block` beats it - so
+  `element.hidden = true` did nothing, and a reply that streamed and then turned out
+  to have no marker appeared twice: once left over in the working, once in the reply.
+  `tests/check_pages.mjs` now refuses a page that sets `display` on a class it hides.
 * **`benchmark.py`** grades only what follows the marker, and reports how often the
   model thought first.
 * **`chat.py`** prints the working dimmed.

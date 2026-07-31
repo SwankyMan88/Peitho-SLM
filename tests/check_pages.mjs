@@ -124,6 +124,23 @@ for (const path of PAGES) {
           !!bubble.thought && bubble.thought.lastChild.textContent === "Tens: 40 + 30 = 70.",
           bubble.thought ? JSON.stringify(bubble.thought.lastChild.textContent) : "");
     stub.checked = false;
+
+    // A `hidden` element still shows if an author rule sets display: setting
+    // .hidden = true did nothing on .thought, so a hidden working stayed on screen
+    // and appeared beside the reply as a duplicate. Property checks cannot see
+    // this, so check the stylesheet instead.
+    const css = html.slice(0, html.indexOf("</style>"));
+    for (const cls of ["thought"]) {
+        const block = (start) => {
+            const at = css.indexOf(start);
+            return at === -1 ? "" : css.slice(at, css.indexOf("}", at));
+        };
+        const setsDisplay = block("." + cls + " {").includes("display");
+        const guarded = block("." + cls + "[hidden] {").includes("display: none");
+        check(`${path}: .${cls} can actually be hidden`,
+              !setsDisplay || guarded,
+              setsDisplay ? `.${cls} sets display but has no [hidden] rule` : "");
+    }
 }
 
 process.exit(failed ? 1 : 0);

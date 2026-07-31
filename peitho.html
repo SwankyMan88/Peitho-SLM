@@ -172,6 +172,12 @@
             }
             /* Working out, not a reply. Quiet, smaller, and set apart, because it is
                there to be glanced at rather than read. */
+            /* `hidden` works by a user-agent display:none rule, and any author rule
+               beats it - so this element needs its own, or setting .hidden does
+               nothing and a hidden thought stays on screen. */
+            .thought[hidden] {
+                display: none;
+            }
             .thought {
                 display: block;
                 white-space: pre-wrap;
