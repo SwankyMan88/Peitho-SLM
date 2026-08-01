@@ -27,9 +27,6 @@ def main():
     p.add_argument("--template", required=True,
                    help="Page with a `var MODEL = {...};` block to replace.")
     p.add_argument("--out", default="")
-    p.add_argument("--greeter", default="",
-                   help="Also bake this export into a `var GREETER = {...};` block, for "
-                        "a page that cannot fetch and still wants an opening line.")
     p.add_argument("--inplace", action="store_true")
     args = p.parse_args()
 
@@ -68,28 +65,6 @@ def main():
             "by design - it loads models/ at run time. Bake into a template that "
             "cannot fetch instead.")
     html = pattern.sub(lambda _: block, html, count=1)
-
-    if args.greeter:
-        greeter_path = versions.resolve(args.greeter)
-        with open(greeter_path, encoding="utf-8") as f:
-            glines = [l.strip() for l in f if l.strip()]
-        if len(glines) != 3:
-            raise SystemExit(f"{greeter_path}: expected 3 lines, found {len(glines)}")
-        for blob in glines[1:]:
-            for bad in ("'", '"', "\\"):
-                if bad in blob:
-                    raise SystemExit(f"the greeter payload contains {bad!r}")
-        block = ("var GREETER = {\n"
-                 f"    file:    '{os.path.basename(greeter_path)}',\n"
-                 f"    header:  {glines[0]},\n"
-                 f"    weights: '{glines[1]}',\n"
-                 f"    scales:  '{glines[2]}'\n"
-                 "};")
-        pattern = re.compile(r"var GREETER = \{.*?\};", re.DOTALL)
-        if not pattern.search(html):
-            raise SystemExit(f"no `var GREETER = {{...}};` block in {args.template}")
-        html = pattern.sub(lambda _: block, html, count=1)
-        print(f"Embedded {paths.short(greeter_path)} as the greeter")
 
     out = args.template if args.inplace else (args.out or "built.html")
     with open(out, "w", encoding="utf-8", newline="\n") as f:

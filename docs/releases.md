@@ -111,9 +111,11 @@ now writes to `build/` instead of the repository root.
 
 * **The terminal chat understands thinking.** `slm/chat.py` printed a raw `◇`; it now
   prints the working dimmed and the reply plainly.
-* **The Khan build carries a greeter.** That page exists because the sandbox forbids
-  fetch, so its opening line has to travel with it — `tools/make_html.py --greeter`
-  bakes one in. 627 KB with both models inside.
+* **The Khan build asks for a greeter and shrugs it off.** Baking one in cost 67 KB on
+  a page that is already 560 KB, which is a poor trade for one line of decoration. It
+  tries to fetch the greeter instead and, where that is forbidden, shows the fixed
+  placeholder with no message, no note and nothing in the console — a page that cannot
+  have an opening line looks exactly like a page that was never going to.
 * **`docs/models.md`** describes all five models: what each is for, what it was trained
   on, and what none of them can do.
 * **A hidden working could still be visible.** `.thought` set `display: block`, and
@@ -128,8 +130,8 @@ now writes to `build/` instead of the repository root.
 `tests/pipeline/test_slm.py` 73 checks, `tests/conformance/test_conformance.py` 25, and
 `tests/pages/check_pages.mjs` 20 — all green from the new layout. Every entry point runs
 from the root. The Khan build was exercised with `fetch` blocked, the way the sandbox
-actually behaves: greeter from the baked copy, two different greetings, the built-in
-model answering, the remote models greying out with a reason.
+actually behaves: the built-in model answering, the remote models greying out with a
+reason, and the greeter failing without saying so.
 
 ## 1.4.0 — It says something, and admits what it does not know
 
