@@ -26,15 +26,17 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Corpus, training, export, pure-Python inference
-        run: python tests/test_slm.py
+        run: python tests/pipeline/test_slm.py
 
       - name: Every decoder agrees with the conformance vectors
-        run: python tests/test_conformance.py
+        run: python tests/conformance/test_conformance.py
 
       - name: The page names it probes for still match the export naming
         run: |
           python - <<'EOF'
-          import re, versions
+          import re, sys
+          sys.path.insert(0, 'slm')
+          import versions
           html = open("peitho.html", encoding="utf-8").read()
           bases = re.search(r"const BASES = \[(.*?)\]", html).group(1)
           for base, version in versions.existing():
@@ -49,7 +51,9 @@ jobs:
       - name: Exports still load and still fit the size budget
         run: |
           python - <<'EOF'
-          import os, versions
+          import os, sys
+          sys.path.insert(0, 'slm')
+          import versions
           from export import import_compressed
           for base, version in versions.existing():
               path = versions.path_for(base, version)

@@ -7,8 +7,8 @@ to check it against fixed numbers.
 
 This writes:
 
-    conformance/micro_1.0.txt   a real export, small enough to read by eye
-    conformance/vectors.json    prompts -> logits, and the greedy continuation
+    tests/conformance/micro_1.0.txt   a real export, small enough to read by eye
+    tests/conformance/vectors.json    prompts -> logits, and the greedy continuation
 
 The model is randomly initialised on purpose. Conformance is about arithmetic, not
 about quality, and random weights exercise the same code paths while keeping the
@@ -24,7 +24,8 @@ import sys
 
 import torch
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "slm"))
 import paths
 from export import export_compressed, import_compressed
 from model import GPT, GPTConfig
@@ -69,7 +70,8 @@ def greedy(model, ids, steps, block_size):
 
 def main():
     p = argparse.ArgumentParser(description="Write the conformance kit.")
-    p.add_argument("--out_dir", default=os.path.join(paths.ROOT, "conformance"))
+    p.add_argument("--out_dir",
+                   default=os.path.join(paths.ROOT, "tests", "conformance"))
     p.add_argument("--bits", type=int, choices=(4, 8), default=8)
     args = p.parse_args()
     os.makedirs(args.out_dir, exist_ok=True)
@@ -97,7 +99,7 @@ def main():
         })
 
     vectors = {
-        "about": "Expected outputs for conformance/micro_1.0.txt. See docs/spec.md.",
+        "about": "Expected outputs for tests/conformance/micro_1.0.txt. See docs/spec.md.",
         "tolerance": 1e-4,
         "greedy_steps": GREEDY_STEPS,
         "cases": cases,

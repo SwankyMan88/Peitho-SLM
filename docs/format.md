@@ -70,11 +70,11 @@ See [thinking.md](thinking.md). The end marker is why replies stop when they are
 character limit: `generate()` takes a `stop_id` and breaks as soon as it samples it.
 
 If you write your own turns, never put a literal `■` inside the text of a turn — the
-model would learn to stop mid-sentence. `tests/test_slm.py` checks this.
+model would learn to stop mid-sentence. `tests/pipeline/test_slm.py` checks this.
 
 ## Porting to JavaScript
 
-`standalone.py` is the reference implementation, written to be transliterated. It runs
+`slm/standalone.py` is the reference implementation, written to be transliterated. It runs
 an export with only the standard library and is validated against PyTorch to ~1e-6
 relative error. In order:
 
@@ -85,5 +85,5 @@ relative error. In order:
 5. `weight = value * scale_of_its_group`, groups being `group_size` consecutive weights
 6. forward pass — layernorm, matmul, gelu, softmax, attention
 
-Use a key-value cache, as `standalone.py` does, or each new character reprocesses the
+Use a key-value cache, as `slm/standalone.py` does, or each new character reprocesses the
 whole context and generation crawls.

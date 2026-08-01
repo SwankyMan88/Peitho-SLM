@@ -4,14 +4,14 @@ The corpus that the released models learned from is committed, so you can train
 without generating anything:
 
 ```bash
-py train.py --data data/training.txt --val_data data/heldout.txt     --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
+py slm/train.py --data data/training.txt --val_data data/heldout.txt     --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
 ```
 
 To generate your own instead:
 
 ```bash
-py corpus/make_corpus.py --target_chars 20000000 --composed 0.95 --think 1.0
-py train.py --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
+py corpus/chat/make_corpus.py --target_chars 20000000 --composed 0.95 --think 1.0
+py slm/train.py --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
 ```
 
 A generated corpus lands in `build/`, which is not in git because it changes every
@@ -48,7 +48,7 @@ the corpus is generated, so turn `--target_chars` up.
 
 **4. Small value pools teach guessing instead of reading.** With only ~20 colours in
 the corpus, guessing is a cheaper way to cut loss than copying from context. Every
-pool that matters needs to be large; `corpus/compose.py` builds thousands of values.
+pool that matters needs to be large; `corpus/chat/compose.py` builds thousands of values.
 
 **5. Repetition is what gets recited.** The hand-written text is repeated to fill the
 corpus, and how often decides whether the model quotes it. At 7 passes the
@@ -84,15 +84,23 @@ At 0.72 characters per parameter, memorizing the corpus is a cheaper way for lar
 to cut loss than learning anything, so it did. On 20M characters the same three
 runs invert completely:
 
-| on 20M characters | small_1.3 | medium_1.2 | large_1.1 |
+| on 30M characters | small_1.4 | medium_1.3 | large_1.2 |
 |---|---|---|---|
-| chars per parameter | 52 | 23 | 7.2 |
-| held-out loss | 0.37 bits/char | 0.36 | **0.36** |
-| generalization gap | **+0.018** | +0.029 | +0.042 |
-| verbatim copies | 12% | 16% | **8%** |
-| arithmetic overall | 25% | 65% | **83%** |
-| 3-digit addition | 16% | 80% | **100%** |
-| 3-digit subtraction | 0% | 28% | **76%** |
+| chars per parameter | 78 | 35 | 11 |
+| held-out loss | 0.23 bits/char | 0.23 | **0.22** |
+| generalization gap | **+0.018** | +0.026 | +0.023 |
+| arithmetic overall | 26% | 68% | **81%** |
+| 3-digit addition | 8% | 84% | **100%** |
+| 3-digit subtraction | 0% | 16% | **56%** |
+| novelty - not recited | 7% | **19%** | 4% |
+
+Held-out loss fell by a third against the 20M corpus and the gap stayed small, so the
+extra data went into generalizing rather than memorizing. Novelty is the one number
+that got worse, and it needs care: measured against text the model never saw it is
+30% rather than 19%, because the generators produce the same strings in both files.
+Every fact has exactly one predicate, so a correct answer is necessarily a string that
+appears in training. Raising it means paraphrasing the facts, not training
+differently.
 
 Arithmetic goes 25 -> 65 -> 83, and large now recites *less* than small. Held-out
 loss improved by a third across the board, because none of the three can afford to
@@ -108,9 +116,9 @@ option.
 ## Reading the benchmark
 
 ```bash
-py benchmark.py large_1.1      # that exact export
-py benchmark.py large          # the highest large_*
-py benchmark.py                # the full-precision checkpoint
+py slm/benchmark.py large_1.1      # that exact export
+py slm/benchmark.py large          # the highest large_*
+py slm/benchmark.py                # the full-precision checkpoint
 ```
 
 Watch `generalization gap` (large = memorizing) and `verbatim copies` (is it reciting
@@ -124,7 +132,7 @@ still a sample.
 
 ## Teaching it new things
 
-Edit `corpus/conversations.txt` — strict `▶…■` / `◀…■`, one turn per line, blank line
+Edit `corpus/chat/conversations.txt` — strict `▶…■` / `◀…■`, one turn per line, blank line
 between conversations — then rebuild and retrain.
 
 The dials that matter are `--composed` (share generated fresh rather than repeated),

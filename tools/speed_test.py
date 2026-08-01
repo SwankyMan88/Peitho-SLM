@@ -12,7 +12,8 @@ import time
 
 import torch
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "slm"))
 import paths
 from model import GPT, GPTConfig, build_vocab, encode
 from train import get_batch, make_optimizer, PRESETS
@@ -61,9 +62,12 @@ def main():
     p.add_argument("--steps", type=int, default=60)
     p.add_argument("--preset", default="medium")
     p.add_argument("--compile", action="store_true", help="Also try torch.compile.")
+    p.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     args = p.parse_args()
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = args.device
+    if device == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
     with open(args.data, encoding="utf-8") as f:

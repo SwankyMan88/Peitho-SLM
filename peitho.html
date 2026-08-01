@@ -139,7 +139,15 @@
                 color: var(--dim);
                 text-align: center;
                 margin: auto;
-                font-size: 0.9rem;
+                font-size: 0.95rem;
+                max-width: 34ch;
+                line-height: 1.7;
+                transition: opacity 600ms ease;
+            }
+            /* Faded out while the next greeting is being written, so it changes
+               without the text visibly rewriting itself character by character. */
+            .empty.fading {
+                opacity: 0;
             }
             .turn {
                 max-width: 78%;
@@ -782,11 +790,19 @@ class Peitho {
    refuses file:// for any sibling file - so opened straight off the disk the page
    says that rather than appearing broken. */
 const FOLDER = "models/";
-const BASES = ["tiny", "small", "medium", "medium_think", "large"];
+/* A separate 47K-parameter model trained only on greetings, so the empty page can
+   open with something composed rather than a fixed string. It is excluded from the
+   picker: it cannot answer anything, and offering it as a chat model would be a
+   trap. */
+const GREETER = "greeter";
+const GREET_EVERY = 30000;
+const BASES = ["tiny", "small", "medium", "medium_think", "large", "greeter"];
 const START_WITH = "small";   /* whichever base name to open with, if it is there */
 const MAJORS = 2;             /* how many major versions of each base to look for */
 const MINORS = 10;            /* and how many minor versions of each of those */
 const downloaded = {};
+let greeter = null;
+let greetAt = 0;
 let choices = [];
 let current = null;
 let loading = false;
@@ -1163,6 +1179,77 @@ function names() {
     return all;
 }
 
+/* One greeting from the greeter model, sampled the same way a reply is. */
+function composeGreeting() {
+    if (!greeter) {
+        return "";
+    }
+    greeter.reset();
+    let logits = null;
+    for (const ch of START + "\n" + BOT) {
+        logits = greeter.step(greeter.stoi[ch]);
+        greeter.pos++;
+    }
+    let text = "";
+    for (let i = 0; i < 220; i++) {
+        // 0.7 rather than 0.9: measured over 300 samples, 0.9 leaves 1.7% with a
+        // mangled word ("I am ha few hundred thousand numbers") for 5% more variety.
+        const id = greeter.sample(logits, 0.7, 20);
+        const ch = greeter.vocab[id];
+        if (ch === END || ch === START || ch === USER || ch === BOT || ch === "\n") {
+            break;
+        }
+        text += ch;
+        logits = greeter.step(id);
+        greeter.pos++;
+    }
+    return text.trim();
+}
+
+/* Only while the conversation is empty, and never while a reply is being written -
+   the greeter and the chat model both want the same few milliseconds. */
+function greet(force) {
+    const empty = el("empty");
+    if (!empty || !greeter || busy || loading || chatTurns.length) {
+        return;
+    }
+    const now = performance.now();
+    if (!force && now - greetAt < GREET_EVERY - 500) {
+        return;
+    }
+    greetAt = now;
+    const next = composeGreeting();
+    if (!next) {
+        return;
+    }
+    empty.classList.add("fading");
+    setTimeout(() => {
+        const still = el("empty");
+        if (still && !chatTurns.length) {
+            still.textContent = next;
+            still.classList.remove("fading");
+        }
+    }, 600);
+}
+
+async function loadGreeter(files) {
+    const found = files.filter(f => f.startsWith(GREETER + "_")).sort();
+    if (!found.length) {
+        return;
+    }
+    try {
+        const response = await fetch(FOLDER + found[found.length - 1]);
+        if (!response.ok) {
+            throw new Error("the server answered " + response.status);
+        }
+        greeter = new Peitho(parseExport(await response.text()));
+        greet(true);
+        setInterval(() => greet(false), 5000);
+    } catch (e) {
+        console.error(e);      /* the fixed placeholder stays; nothing else breaks */
+    }
+}
+
 /* Offer everything found, and open the smallest of the preferred base name - the
    quickest to fetch and unpack. */
 async function findModels() {
@@ -1193,7 +1280,11 @@ async function findModels() {
     }
 
     found.sort((a, b) => a.bytes - b.bytes);
+    loadGreeter(found.map(entry => entry.file));
     for (const entry of found) {
+        if (entry.file.startsWith(GREETER + "_")) {
+            continue;      /* it greets; it cannot answer */
+        }
         addChoice({
             key: entry.file.replace(/[^A-Za-z0-9]/g, "_"),
             label: shortName(entry.file),
@@ -1307,6 +1398,7 @@ function init() {
         log.innerHTML = '<div class="empty" id="empty">Say something to begin.</div>';
         el("stats").textContent = "";
         layout();
+        greet(true);
     };
     el("gear").onclick = e => {
         e.stopPropagation();

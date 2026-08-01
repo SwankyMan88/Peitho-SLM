@@ -23,23 +23,22 @@ thousandth the size of the models people usually mean. They hold a short
 conversation, compose sentences they have never seen, and work arithmetic out step by
 step. They also get things wrong confidently, which is the part to watch.
 
-| | small_1.3 | medium_1.2 | large_1.1 | medium_think_1.0 |
+| | small_1.4 | medium_1.3 | medium_think_1.3 | large_1.2 |
 |---|---|---|---|---|
-| parameters | 382K | 855K | 2.7M | 855K |
-| export size | **509 KB** | 1.1 MB | 3.6 MB | 1.1 MB |
-| spelling (real words) | 99% | 98% | 99% | 100% |
-| arithmetic on unseen sums | 25% | 65% | 83% | **88%** |
-| mean reply length | 141 | 129 | 149 | **54** |
-| verbatim copies | 12% | 16% | 8% | 16% |
-| works out loud first | no | no | no | **yes** |
+| parameters | 382K | 855K | 855K | 2.7M |
+| export size | **509 KB** | 1.1 MB | 1.1 MB | 3.6 MB |
+| held-out loss | 0.23 bits/char | 0.23 | 0.23 | **0.22** |
+| spelling (real words) | **100%** | 99% | **100%** | **100%** |
+| arithmetic on unseen sums | 26% | 68% | 68% | **81%** |
+| 3-digit addition | 8% | 84% | 92% | **100%** |
+| works out loud first | yes | yes | yes | yes |
 
-Use **large** if you can spare the download, **small** if the weights have to be
-pasted somewhere by hand — 509 KB is the size that fits in a text box — and
-**medium_think** for short answers with the working shown separately.
+Use **large** if you can spare the download and **small** if the weights have to be
+pasted somewhere by hand — 509 KB is the size that fits in a text box. A fifth model,
+**greeter**, is 61 KB and does nothing but open a conversation.
 
-The arithmetic column is not a like-for-like comparison of the presets: `medium_think`
-was trained on a corpus with far more arithmetic in it, and a no-thinking model on that
-same corpus scores 86%. See [docs/thinking.md](docs/thinking.md).
+Every model in detail, including what none of them can do:
+[docs/models.md](docs/models.md).
 
 ## Quick start
 
@@ -47,23 +46,23 @@ The corpus is in the repository, so training needs nothing generated first:
 
 ```bash
 pip install -r requirements.txt
-py train.py --data data/training.txt --val_data data/heldout.txt --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
+py slm/train.py --data data/training.txt --val_data data/heldout.txt --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
 ```
 
 To build a corpus of your own instead — different size, different mix, your own
-hand-written conversations in `corpus/conversations.txt`:
+hand-written conversations in `corpus/chat/conversations.txt`:
 
 ```bash
-py corpus/make_corpus.py --target_chars 20000000 --composed 0.95 --think 1.0
+py corpus/chat/make_corpus.py --target_chars 20000000 --composed 0.95 --think 1.0
 ```
 
 Then talk to it, measure it, or run it with no PyTorch at all:
 
 ```bash
-py chat.py                     # terminal chat, remembers the conversation
-py benchmark.py large          # what it is good and bad at
-py standalone.py               # the same model, standard library only
-py tests/test_slm.py           # the whole pipeline, about a minute
+py slm/chat.py                     # terminal chat, remembers the conversation
+py slm/benchmark.py large          # what it is good and bad at
+py slm/standalone.py               # the same model, standard library only
+py tests/pipeline/test_slm.py           # the whole pipeline, about a minute
 ```
 
 For the browser, serve the folder and open `peitho.html`:
@@ -76,18 +75,18 @@ py -m http.server
 
 | | |
 |---|---|
-| `model.py` | The network: embeddings, causal self-attention, MLP blocks, weight-tied head. Also the turn markers. |
-| `train.py` | Trains on a text file, checkpoints to `build/`, exports to `models/`. |
-| `export.py` | Quantizes weights and writes/reads the 3-line text export. |
-| `standalone.py` | Runs an export with **no PyTorch and no numpy** — the reference decoder, and the blueprint for a JS port. |
-| `chat.py` | Terminal chat. |
-| `benchmark.py` | Language, format, spelling, variety, novelty, copying, arithmetic, export cost. |
-| `versions.py`, `paths.py` | Where exports are named and where everything lives. |
+| `slm/model.py` | The network: embeddings, causal self-attention, MLP blocks, weight-tied head. Also the turn markers. |
+| `slm/train.py` | Trains on a text file, checkpoints to `build/`, exports to `models/`. |
+| `slm/export.py` | Quantizes weights and writes/reads the 3-line text export. |
+| `slm/standalone.py` | Runs an export with **no PyTorch and no numpy** — the reference decoder, and the blueprint for a JS port. |
+| `slm/chat.py` | Terminal chat. |
+| `slm/benchmark.py` | Language, format, spelling, variety, novelty, copying, arithmetic, export cost. |
+| `slm/versions.py`, `slm/paths.py` | Where exports are named and where everything lives. |
 | `peitho.html` | The browser page. Carries no weights: it finds the exports in `models/` itself. |
+| `models/` | The exports, described one by one in [docs/models.md](docs/models.md). |
 | `data/` | **The corpus the released models were trained on**, ~20M characters, plus its recipe and hashes. Train from this directly. |
 | `corpus/` | `conversations.txt` (hand-written — **edit this to change what it knows**), plus the generators: `talk.py` for conversation, `arith.py` for worked sums, `thinking.py` for turns that work something out first, `make_corpus.py` to assemble them. |
 | `tools/` | `make_html.py` bakes an export into a page that cannot fetch; `make_js_models.py` mirrors exports as `.js`; `speed_test.py` measures training throughput. |
-| `models/` | The exports. `large_1.1` writes best, `small_1.3` fits in a text box, `medium_think_1.0` shows its working. |
 | `build/` | Everything regenerable — corpus, caches, checkpoints. Not in git. |
 | `docs/` | The detail. |
 
@@ -106,7 +105,7 @@ Ones: 9 + 3 = 12, so write 2 and carry 1. Tens: ...
 6 * 10 = 60, leaving 36. 6 * 6 = 36. Together that is 10 + 6 = 16.
 ```
 
-`corpus/arith.py` solves each problem in Python — so the lesson is true — and offers
+`corpus/chat/arith.py` solves each problem in Python — so the lesson is true — and offers
 several methods per problem, so no wording maps to one fixed reply and a follow-up
 ("show me another way") can rework the same problem differently to the same number.
 
@@ -118,6 +117,8 @@ land and large ones to drop a carry. The visible working is what lets you catch 
 ## Documentation
 
 * [docs/training.md](docs/training.md) — how to train your own custom models from scratch
+* [docs/models.md](docs/models.md) — **every model in detail**: what each one is for,
+  what it was trained on, and what none of them can do.
 * [docs/spec.md](docs/spec.md) — **the format specification**: everything needed to
   implement a decoder in any language, and a conformance kit to prove it correct.
 * [docs/format.md](docs/format.md) — the practical tour of the export, why 8 bits and

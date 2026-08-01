@@ -5,7 +5,7 @@ anyone experiments. data/ holds the corpus a released model was actually trained
 so somebody can clone the repository and train without running the generators at
 all. This copies one to the other and records how it was made.
 
-    py tools/publish_corpus.py --command "py corpus/make_corpus.py --think 1.0 ..."
+    py tools/publish_corpus.py --command "py corpus/chat/make_corpus.py --think 1.0 ..."
 """
 
 import argparse
@@ -14,12 +14,13 @@ import os
 import shutil
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "slm"))
 import paths
 from model import START_MARK, USER_MARK, BOT_MARK, END_MARK, THINK_MARK
 
 DATA = os.path.join(paths.ROOT, "data")
-DEFAULT_COMMAND = ("py corpus/make_corpus.py --target_chars 20000000 "
+DEFAULT_COMMAND = ("py corpus/chat/make_corpus.py --target_chars 20000000 "
                    "--composed 0.95 --think 1.0")
 
 
@@ -71,7 +72,7 @@ def main():
 
 The text the released models were trained on, so this repository can be cloned and
 trained from without running the generators. It is generated, not hand-written -
-`corpus/` holds the programs that produce it, and `corpus/conversations.txt` holds
+`corpus/` holds the programs that produce it, and `corpus/chat/conversations.txt` holds
 the only part a person wrote by hand.
 
 | | training.txt | heldout.txt |

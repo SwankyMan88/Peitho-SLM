@@ -1,5 +1,136 @@
 # Releases
 
+## 1.5.0 — Longer conversations, a fifth model, and a folder for everything
+
+### Conversations that hold together
+
+The generated corpus used to be one to three exchanges stapled together. It now runs
+to nine on average and up to twenty-one, with a subject that persists across turns and
+gets referred to by pronoun:
+
+```
+you:    Hi, got a minute?
+peitho: Morning. Ask away.
+you:    what do you know about springs?
+peitho: A spring stores force by bending - that is the whole of it.
+you:    Does it wear out?
+peitho: Slowly, if you look after it.
+you:    Anyway. Round 200 to the nearest ten.
+peitho: 200.
+you:    Got it, thanks
+peitho: Take care.
+```
+
+Following up with "it" and "that" is the only thing that teaches a model to read *back*
+through its context rather than answer the last line in isolation. Openings and
+closings bracket the conversation; pivots mark a change of subject.
+
+| | before | now |
+|---|---|---|
+| user messages per conversation | mean 1.6, range 1–3 | **mean 9.2, up to 21** |
+| corpus | 20M characters | **30M** |
+| facts it can talk about | 150 | **207** |
+| honest "I do not know" | 7% | 12% |
+
+### Four models retrained, and the ordering holds
+
+| | small_1.4 | medium_1.3 | medium_think_1.3 | large_1.2 |
+|---|---|---|---|---|
+| held-out loss | 0.23 bits/char | 0.23 | 0.23 | **0.22** |
+| generalization gap | **+0.018** | +0.026 | +0.025 | +0.023 |
+| format — ends turn | 96% | **100%** | 96% | **100%** |
+| spelling | **100%** | 99% | **100%** | **100%** |
+| arithmetic overall | 26% | 68% | 68% | **81%** |
+| 3-digit addition | 8% | 84% | 92% | **100%** |
+| 3-digit subtraction | 0% | 16% | 12% | **56%** |
+
+Held-out loss fell by a third against 1.4.0 and the gaps stayed small, so the extra
+data went into generalizing. `large` gets three-digit addition right every time.
+
+**Novelty is the one number that got worse** — 4-19%, against 66% at 1.4.0 — and it
+deserves the caveat rather than a quiet omission. Measured against text the model never
+saw it is 30% rather than 19%: the generators produce the same strings in the training
+and held-out files, so roughly half the drop is the metric measuring corpus redundancy.
+The real cause is structural. Every fact has exactly one predicate, so a *correct*
+answer about a kettle is necessarily a string that appears in training. Raising it means
+paraphrasing the facts three or four ways, not training differently.
+
+### A fifth model that does one thing
+
+`greeter_1.1` — **48,720 parameters, 65 KB** — is trained on greetings and nothing else.
+It writes the line an empty page opens with, refreshed every 30 seconds.
+
+```
+Look who it is - I am not connected to anything. Your turn.
+Good afternoon - I can work out small sums if you show me one. Ask me something.
+Hello. Half a megabyte of text, pretending to hold a conversation.
+```
+
+It has never seen a question and cannot answer one, so it is excluded from the model
+picker. Trained **on CPU in seven minutes**, which is the other half of the point: a
+narrow task at this size does not need a GPU.
+
+Sampling temperature matters more than size for it. Over 300 greetings: 98.3% contain
+only real words at temperature 0.9, 99.7% at 0.7. The page uses 0.7 — at 0.9 about one
+in sixty produces "I am ha few hundred thousand numbers", which is not worth 5% more
+variety.
+
+### CPU training, measured
+
+`--device auto|cpu|cuda` on `slm/train.py` and `tools/speed_test.py`, defaulting to
+CUDA when it exists. Asking for CUDA without a GPU now fails clearly instead of
+falling back silently.
+
+| preset | CPU (12 threads) | GPU (RTX 3060) | ratio |
+|---|---|---|---|
+| greeter | 72,314 chars/sec | 744,735 | **10x** |
+| small | 42,885 | 1,209,559 | **28x** |
+| medium | 22,937 | 916,991 | **40x** |
+
+The ratio widens with size because the GPU is nowhere near saturated on the small
+model. That is why the greeter trains on CPU in minutes while `medium` would take about
+nine hours.
+
+### A folder for everything
+
+The root held eight loose Python files and two stray generated ones. It now holds two
+pages, three files and eight folders:
+
+| | |
+|---|---|
+| `slm/` | the engine: model, export, train, benchmark, chat, standalone, versions, paths |
+| `corpus/chat/` | the conversational corpus and its generators |
+| `corpus/greeter/` | greetings, for the tiny opening model |
+| `tests/pipeline/`, `tests/conformance/`, `tests/pages/` | one folder per suite, kit included |
+
+`train.py` stays in `slm/` rather than under either corpus, because it trains both.
+Commands gain one directory: `py slm/train.py`, `py slm/chat.py`. `chat_history.json`
+now writes to `build/` instead of the repository root.
+
+### Also
+
+* **The terminal chat understands thinking.** `slm/chat.py` printed a raw `◇`; it now
+  prints the working dimmed and the reply plainly.
+* **The Khan build carries a greeter.** That page exists because the sandbox forbids
+  fetch, so its opening line has to travel with it — `tools/make_html.py --greeter`
+  bakes one in. 627 KB with both models inside.
+* **`docs/models.md`** describes all five models: what each is for, what it was trained
+  on, and what none of them can do.
+* **A hidden working could still be visible.** `.thought` set `display: block`, and
+  `hidden` works by a user-agent rule that any author rule beats — so a reply that
+  streamed and then turned out to have no marker appeared twice, which read as the model
+  repeating itself. `tests/pages/check_pages.mjs` now refuses a page that sets `display`
+  on a class it hides by attribute; a property check cannot see this, because
+  `element.hidden` was `true` the whole time.
+
+### Verified
+
+`tests/pipeline/test_slm.py` 73 checks, `tests/conformance/test_conformance.py` 25, and
+`tests/pages/check_pages.mjs` 20 — all green from the new layout. Every entry point runs
+from the root. The Khan build was exercised with `fetch` blocked, the way the sandbox
+actually behaves: greeter from the baked copy, two different greetings, the built-in
+model answering, the remote models greying out with a reason.
+
 ## 1.4.0 — It says something, and admits what it does not know
 
 The generated conversation used to come from lyrical clause shapes over adjective and

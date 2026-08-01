@@ -2,20 +2,20 @@
 
 The text the released models were trained on, so this repository can be cloned and
 trained from without running the generators. It is generated, not hand-written -
-`corpus/` holds the programs that produce it, and `corpus/conversations.txt` holds
+`corpus/` holds the programs that produce it, and `corpus/chat/conversations.txt` holds
 the only part a person wrote by hand.
 
 | | training.txt | heldout.txt |
 |---|---|---|
-| characters | 20,000,072 | 1,200,010 |
-| conversations | 99,061 | 6,056 |
-| turns | 317,152 | 19,004 |
-| model turns that think first | 149,176 of 158,576 | 9,037 of 9,502 |
+| characters | 30,001,835 | 1,801,756 |
+| conversations | 21,063 | 1,291 |
+| turns | 393,302 | 23,806 |
+| model turns that think first | 195,416 of 196,651 | 11,836 of 11,903 |
 | distinct characters | 80 | 80 |
 
 ```
-training.txt  sha256 6f9e60ccb9997c6c8ae17e1d0be303f91a3363a44c765b2c0ff4706da7d763e0
-heldout.txt   sha256 9eb9e9f66509f010f031c79d28cefb6dd705df72a377f0e4e616b7168bbe35c8
+training.txt  sha256 e005337891013103d9e2ff5ef5a9509706d961166e54e03bc142b7cb82650520
+heldout.txt   sha256 b3137d7c3da71dfa5d9cbd6bb5200673598149affeed9305340d68f2753670a0
 ```
 
 ## Train on it
@@ -32,7 +32,7 @@ something. Both files use the turn markers described in
 ## Regenerate it
 
 ```bash
-py corpus/make_corpus.py --target_chars 20000000 --composed 0.95 --think 1.0
+py corpus/chat/make_corpus.py --target_chars 30000000 --composed 0.97 --think 1.0
 py tools/publish_corpus.py
 ```
 
@@ -40,4 +40,4 @@ The generators are seeded, so the same command on the same commit reproduces the
 files byte for byte - the hashes above are worth checking if you change anything in
 `corpus/` and want to know whether you changed the corpus too.
 
-Models trained on this corpus: medium_think_1.2.
+Models trained on this corpus: small_1.4, medium_1.3, medium_think_1.3, large_1.2.

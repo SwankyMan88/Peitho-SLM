@@ -94,8 +94,8 @@ the corpus the marker is never emitted.
 ## Turning it off
 
 ```bash
-py corpus/make_corpus.py --target_chars 20000000 --think 1.0                # with
-py corpus/make_corpus.py --target_chars 20000000 --think 1.0 --no_thinking   # without
+py corpus/chat/make_corpus.py --target_chars 20000000 --think 1.0                # with
+py corpus/chat/make_corpus.py --target_chars 20000000 --think 1.0 --no_thinking   # without
 ```
 
 Both forms of every turn are built from **one** draw of the generator, so the two
@@ -140,10 +140,10 @@ Nothing needs a flag or a mode, because absence of the marker is the fallback:
   by a user-agent rule, and the author rule setting `display: block` beats it - so
   `element.hidden = true` did nothing, and a reply that streamed and then turned out
   to have no marker appeared twice: once left over in the working, once in the reply.
-  `tests/check_pages.mjs` now refuses a page that sets `display` on a class it hides.
-* **`benchmark.py`** grades only what follows the marker, and reports how often the
+  `tests/pages/check_pages.mjs` now refuses a page that sets `display` on a class it hides.
+* **`slm/benchmark.py`** grades only what follows the marker, and reports how often the
   model thought first.
-* **`chat.py`** prints the working dimmed.
+* **`slm/chat.py`** prints the working dimmed.
 * Anything that ignores `◇` entirely prints both halves, which is harmless.
 
 `◇` is not a stop character — generation continues past it to `■`.

@@ -134,7 +134,7 @@ y    = (x - mean) / sqrt(var + eps) * weight + bias
 gelu(x) = 0.5 * x * (1 + erf(x / sqrt(2)))
 ```
 
-`standalone.py` includes a short `erf` series if your language lacks one. The tanh
+`slm/standalone.py` includes a short `erf` series if your language lacks one. The tanh
 approximation differs by up to ~1e-3, which exceeds the conformance tolerance.
 
 ### Weight layout
@@ -190,16 +190,16 @@ one.
 
 ## Proving a port correct
 
-`conformance/` holds a purpose-built micro model — 2 layers, 20 dimensions, 55
+`tests/conformance/` holds a purpose-built micro model — 2 layers, 20 dimensions, 55
 tokens, 17 KB — and the numbers it must produce.
 
 ```bash
 py tools/make_conformance.py     # regenerate the kit
-py tests/test_conformance.py     # check PyTorch, pure Python and the browser JS
-node conformance/check.mjs       # just the JavaScript in peitho.html
+py tests/conformance/test_conformance.py     # check PyTorch, pure Python and the browser JS
+node tests/conformance/check.mjs       # just the JavaScript in peitho.html
 ```
 
-`conformance/vectors.json` gives, for each of five prompts: the token ids, the
+`tests/conformance/vectors.json` gives, for each of five prompts: the token ids, the
 logits after the final token, and the greedy continuation for eight steps.
 
 | Field | Use |
@@ -212,7 +212,7 @@ The greedy check earns its place. A key-value cache that is correct for the firs
 token and wrong afterwards passes a single-logit comparison and fails this.
 
 Three independent implementations agree on these numbers today: PyTorch
-(`export.py`), pure Python with no dependencies at all (`standalone.py`), and the
+(`slm/export.py`), pure Python with no dependencies at all (`slm/standalone.py`), and the
 JavaScript that ships inside `peitho.html`.
 
 ### If your numbers are close but not equal
