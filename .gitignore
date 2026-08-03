@@ -10,6 +10,12 @@ build/
 # The Khan Academy build carries its weights inline and is not published here.
 khan/
 
+# What slm/learn.py exports belongs to whoever taught it: their facts, their
+# corrections, in their copy of a released model. Not ours to publish by default.
+# Force-add one (git add -f models/taught_1.0.txt) to share it deliberately.
+models/taught_*.txt
+models/taught_*.js
+
 chat_history.json
 __pycache__/
 *.pyc

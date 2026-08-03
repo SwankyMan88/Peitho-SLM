@@ -796,7 +796,9 @@ const FOLDER = "models/";
    trap. */
 const GREETER = "greeter";
 const GREET_EVERY = 30000;
-const BASES = ["tiny", "small", "medium", "medium_think", "large", "greeter"];
+/* "taught" is what slm/learn.py exports under: a released model plus whatever
+   someone taught it live. Same format, same probe, no special case. */
+const BASES = ["tiny", "small", "medium", "medium_think", "large", "greeter", "taught"];
 const START_WITH = "small";   /* whichever base name to open with, if it is there */
 const MAJORS = 2;             /* how many major versions of each base to look for */
 const MINORS = 10;            /* and how many minor versions of each of those */

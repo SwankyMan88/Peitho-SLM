@@ -31,6 +31,9 @@ jobs:
       - name: Every decoder agrees with the conformance vectors
         run: python tests/conformance/test_conformance.py
 
+      - name: Live teaching - masking, rehearsal, undo, guard rails
+        run: python tests/learning/test_learn.py
+
       - name: The page names it probes for still match the export naming
         run: |
           python - <<'EOF'

@@ -60,10 +60,17 @@ Then talk to it, measure it, or run it with no PyTorch at all:
 
 ```bash
 py slm/chat.py                     # terminal chat, remembers the conversation
+py slm/learn.py                    # teach it something new, live, in about a second
 py slm/benchmark.py large          # what it is good and bad at
 py slm/standalone.py               # the same model, standard library only
 py tests/pipeline/test_slm.py           # the whole pipeline, about a minute
 ```
+
+`learn.py` is worth a look even if you only want to watch: you type a question and
+the answer you wanted, and it takes a dozen gradient steps on the spot. It rewords
+your question several ways so the answer attaches to the meaning rather than the
+spelling, holds one wording back to test with, and tells you whether the model
+answered a phrasing it never trained on. See [docs/learning.md](docs/learning.md).
 
 For the browser, serve the folder and open `peitho.html`:
 
@@ -80,6 +87,7 @@ py -m http.server
 | `slm/export.py` | Quantizes weights and writes/reads the 3-line text export. |
 | `slm/standalone.py` | Runs an export with **no PyTorch and no numpy** — the reference decoder, and the blueprint for a JS port. |
 | `slm/chat.py` | Terminal chat. |
+| `slm/learn.py` | Teaches a trained model new answers live, with rehearsal so it does not forget, and an undo when a lesson costs too much. |
 | `slm/benchmark.py` | Language, format, spelling, variety, novelty, copying, arithmetic, export cost. |
 | `slm/versions.py`, `slm/paths.py` | Where exports are named and where everything lives. |
 | `peitho.html` | The browser page. Carries no weights: it finds the exports in `models/` itself. |
@@ -125,6 +133,8 @@ land and large ones to drop a carry. The visible working is what lets you catch 
   not 4, and the conversation markers.
 * [docs/hosting.md](docs/hosting.md) — the browser page, serving exports over jsDelivr,
   and getting a model into a sandbox that cannot fetch.
+* [docs/learning.md](docs/learning.md) — **teaching a model while it runs**: how a
+  lesson works, what keeps it from forgetting, and the measured limits
 * [docs/thinking.md](docs/thinking.md) — the working-then-answer format, what it
   measured, and what it costs. **Experimental, on the `thinking` branch.**
 * [docs/releases.md](docs/releases.md) — what changed, release by release.
