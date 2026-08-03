@@ -25,6 +25,7 @@ asserting anything harder.
 """
 
 import random
+import re
 import sys
 import os
 
@@ -160,6 +161,135 @@ FACTS = {
     "shade": "is somewhere the sun does not reach",
 }
 
+# ------------------------------------------------------------- saying a fact
+# Each fact used to be expressed exactly one way. FACTS["kettle"] is "boils water",
+# it went into one of ten templates, and so the informative half of every answer was
+# one of 206 fixed strings - 36,000 fact replies drawn from 206 phrasings. The
+# dressing varied; the substance never did. A model trained on that can only recite,
+# and it did: 7% of large_1.2's replies were not a verbatim training string, and half
+# opened with one.
+#
+# So the same fact is now said four different ways - as a verb phrase, as a job, as
+# a purpose, as a noun phrase - which forces the model to learn what a kettle does
+# rather than which sentence follows the word "kettle". It is the difference between
+# a lookup table and something that composes.
+
+IRREGULAR_BASE = {"is": "be", "has": "have", "goes": "go", "does": "do",
+                  "says": "say", "flies": "fly", "dries": "dry"}
+IRREGULAR_GERUND = {"be": "being", "go": "going", "have": "having", "do": "doing"}
+VOWELS = "aeiou"
+
+
+def base_form(verb):
+    """"boils" -> "boil". Third person back to the plain verb."""
+    if verb in IRREGULAR_BASE:
+        return IRREGULAR_BASE[verb]
+    if verb.endswith("ies"):
+        return verb[:-3] + "y"
+    if verb.endswith(("ses", "xes", "zes", "ches", "shes", "oes")):
+        return verb[:-2]
+    if verb.endswith("s"):
+        return verb[:-1]
+    return verb
+
+
+def gerund(word):
+    """"boil" -> "boiling", "store" -> "storing", "put" -> "putting"."""
+    if word in IRREGULAR_GERUND:
+        return IRREGULAR_GERUND[word]
+    if word.endswith("e") and not word.endswith(("ee", "ye", "oe")):
+        return word[:-1] + "ing"
+    # English doubles the final consonant only when the stress lands on the last
+    # syllable, which for these verbs means the word has just one: put -> putting,
+    # but deliver -> delivering, not deliverring.
+    one_syllable = len(re.findall(r"[aeiouy]+", word)) == 1
+    if (one_syllable and len(word) >= 3 and word[-1] not in VOWELS + "wxy"
+            and word[-2] in VOWELS and word[-3] not in VOWELS):
+        return word + word[-1] + "ing"
+    return word + "ing"
+
+
+def inflectable(predicate):
+    """Whether a predicate is one verb phrase that can safely be reworded.
+
+    "lets the water through and keeps the dirt" has a second verb agreeing with the
+    subject, so rewording only the first would give "letting the water through and
+    keeps the dirt". Those, the plural-subject ones ("grip harder than fingers can")
+    and the noun phrases are left exactly as they are."""
+    head = predicate.split()[0]
+    if not head.endswith("s") or predicate.startswith("is "):
+        return False
+    return not re.search(r"\band \w+s\b", predicate)
+
+
+# {np} is the thing as it appears in a sentence - "a kettle", "pliers", "thunder" -
+# and {it}/{is}/{its} agree with it, so one frame serves a count noun, a mass noun
+# and a plural-only noun without writing three of everything.
+
+# The predicate as it stands: "A kettle boils water."
+VERB_FRAMES = [
+    "{NP} {pred}.", "{It} {pred}.", "Mostly {it} {pred}.",
+    "{NP} {pred}, and not much else.",
+    "{NP} {pred} - that is the whole of it.",
+    "{NP} {is} what {pred}.", "{NP} {pred}, and that is the job.",
+]
+# The same fact as a job: "Its job is to boil water."
+BASE_FRAMES = [
+    "{Its} job {is} to {base}.", "What {it} {does} is {base}.",
+    "You use one to {base}.", "{NP} will {base}.",
+    "The point of {np} is to {base}.", "You would use {np} to {base}.",
+    "One thing: {it} will {base}.",
+]
+# The same fact as a purpose: "It is for boiling water."
+GERUND_FRAMES = [
+    "{It} {is} for {ger}.", "{Ger} - that is what {np} {is} for.",
+    "{NP} {is} the thing for {ger}.",
+    "If something needs {ger}, that is {np}.",
+    "{NP} {is} about {ger} and little else.", "For {ger}, you want {np}.",
+]
+# The ones that are already a noun phrase: "A meadow is grass nobody has ploughed."
+NOUN_FRAMES = [
+    "{NP} {is} {noun}.", "{Thing}: {noun}.", "Think of {np} as {noun}.",
+    "{NP}? {Noun}.", "Near enough, {np} {is} {noun}.",
+    "{Noun} - that is {np}.", "{NP} {is} {noun}, more or less.",
+    "{It} {is} {noun}.",
+]
+
+
+def say_fact(rng, thing, with_after=True):
+    """One sentence expressing what a thing is, chosen from every way we can say it.
+
+    Around twenty shapes per fact rather than ten, and - the part that matters - the
+    informative words differ between them rather than only the packaging."""
+    predicate = FACTS[thing]
+    plural = thing in PLURAL_ONLY
+    parts = words(thing)
+
+    if predicate.startswith("is "):
+        noun = predicate[3:]
+        frame = rng.choice(NOUN_FRAMES)
+        text = frame.format(noun=noun, Noun=noun[0].upper() + noun[1:], **parts)
+    elif inflectable(predicate):
+        head, _, rest = predicate.partition(" ")
+        stem = base_form(head)
+        base = (stem + " " + rest).strip()
+        ger = (gerund(stem) + " " + rest).strip()
+        frame = rng.choice(VERB_FRAMES + BASE_FRAMES + GERUND_FRAMES)
+        # "bellows" is plural and its predicate is written singular, so the verb has
+        # to lose its "s" to agree: bellows push air, they do not pushes it.
+        text = frame.format(pred=base if plural else predicate, base=base, ger=ger,
+                            Ger=ger[0].upper() + ger[1:], **parts)
+    else:
+        # A plural subject ("pliers grip harder than fingers can") is already in the
+        # right form for a plural frame and cannot be turned into a singular one.
+        frame = rng.choice(VERB_FRAMES if plural else VERB_FRAMES[:1])
+        text = frame.format(pred=predicate, **parts)
+
+    if with_after and rng.random() < 0.35:
+        text += " " + rng.choice(AFTER)
+    return text
+
+
 # A follow-up that can honestly go after any of the above.
 AFTER = [
     "It is not complicated, but it has to be the right size.",
@@ -176,22 +306,19 @@ AFTER = [
     "Older ones tend to be heavier and last longer.",
 ]
 
+# {np} carries its own article, or none at all: "a kettle", but "thunder" and
+# "pliers". Asking "what is a thunder?" taught the model to write it that way.
 ASK = [
-    "What is a {thing}?", "What does a {thing} do?", "Tell me about {a} {thing}.",
-    "What is {a} {thing} for?", "whats a {thing}", "Explain {a} {thing} to me.",
+    "What {is} {np}?", "What {does} {np} do?", "Tell me about {np}.",
+    "What {is} {np} for?", "whats {np}", "Explain {np} to me.",
     "I keep hearing about {them}. What are they?", "What do you know about {them}?",
-    "Why would anyone need {a} {thing}?", "Is {a} {thing} useful?",
-    "Can you explain what {a} {thing} is?", "{them} - what is the point of them?",
+    "Why would anyone need {np}?", "{Is} {np} useful?",
+    "Can you explain what {np} {is}?", "{them} - what is the point of them?",
 ]
 
-ANSWER = [
-    "{A} {thing} {fact}.", "{A} {thing} {fact}. {after}",
-    "It {fact}. {after}", "{A} {thing} {fact} - that is the whole of it.",
-    "Mostly it {fact}.", "The short answer is that it {fact}.",
-    "{A} {thing} {fact}, and not much else.",
-    "One job: it {fact}.", "It is the thing that {fact}.",
-    "{A} {thing} {fact}. That is all I would claim for it.",
-]
+# The old ANSWER list lived here: ten templates, each dropping the predicate in
+# unchanged. say_fact replaced it, because "how it is packaged" was the only thing
+# those ten varied.
 
 # Things that do not exist, so the honest answer is the only right one. Kept
 # obviously invented: a made-up word is a clear signal, and the model needs the cue
@@ -224,12 +351,12 @@ DONT_KNOW = [
 # Ambiguous questions, where the useful reply is a question back.
 CLARIFY_ASK = [
     "Can you help me with the {thing}?", "Something is wrong with my {thing}.",
-    "I need to sort out a {thing}.", "What should I do about the {thing}?",
+    "I need to sort out {np}.", "What should I do about the {thing}?",
     "The {thing} is being difficult.", "Any advice on {them}?",
 ]
 CLARIFY = [
-    "Depends what you are after - do you mean how {a} {thing} works, or how to fix one?",
-    "Which part? Choosing {a} {thing}, or using one you already have?",
+    "Depends what you are after - do you mean how {np} works, or how to fix one?",
+    "Which part? Choosing {np}, or using one you already have?",
     "I can try. Is it broken, or are you deciding whether you need one?",
     "Tell me a bit more - is this about {them} in general or one in particular?",
     "Happy to. Do you want the short version or the details?",
@@ -340,12 +467,18 @@ def dress(rng, text, refusal=False):
 # generator knows whether it is about to answer, decline or ask back - and a thought
 # that does not name the subject is the poetry problem moved somewhere quieter.
 KNOWN_THOUGHT = [
-    "They asked what {a} {thing} is. I know that one - it {fact}. Say it plainly.",
-    "The question is about {them}. That is in what I was taught: it {fact}.",
-    "{Thing}: it {fact}. Short answer, no padding.",
-    "They want to know about {them}. I have that - it {fact}.",
-    "This is a {thing} question. I know it {fact}, so answer and stop.",
-    "I do know this one. {A} {thing} {fact}. Keep it to that.",
+    "They asked what {np} {is}. I know that one - {it} {fact}. Say it plainly.",
+    "The question is about {them}. That is in what I was taught: {it} {fact}.",
+    "{Thing}: {it} {fact}. Short answer, no padding.",
+    "They want to know about {them}. I have that - {it} {fact}.",
+    "This is a {thing} question. I know {it} {fact}, so answer and stop.",
+    "I do know this one. {NP} {fact}. Keep it to that.",
+    # The same working, reached through a different wording of the fact.
+    "{Thing} I know. {said} That is the useful part.",
+    "They want {thing}. {said} Keep it short.",
+    "I have this one. {said} No need to pad it.",
+    "Easy - {said} Answer and stop there.",
+    "About {them}, and I know it. {said} Say that much.",
 ]
 UNKNOWN_THOUGHT = [
     "They asked about {a} {thing}. I have never seen that word. Say so rather than guess.",
@@ -362,10 +495,10 @@ CANNOT_THOUGHT = [
     "I am being asked {what}. I would only be making it up. Be straight instead.",
 ]
 CLARIFY_THOUGHT = [
-    "They mentioned {a} {thing} but not what they want doing about it. Ask which.",
+    "They mentioned {np} but not what they want doing about it. Ask which.",
     "Too vague to answer well - {thing}, but which part? Ask before guessing.",
     "This could mean two things. Better to ask than to answer the wrong one.",
-    "They want help with {a} {thing}. I need to know what kind before I answer.",
+    "They want help with {np}. I need to know what kind before I answer.",
 ]
 CHIT_THOUGHT = [
     "They are asking about me. Answer it straight, no hedging.",
@@ -418,8 +551,8 @@ SAME_PLURAL = {
 
 def plural(word):
     """marsh -> marshes, not marshs."""
-    if word in SAME_PLURAL:
-        return word
+    if word in SAME_PLURAL or word in PLURAL_ONLY:
+        return word          # pliers are already plural; "plierses" is not a word
     if word.endswith(("s", "x", "z", "ch", "sh")):
         return word + "es"
     if word.endswith("y") and word[-2:-1] not in "aeiou":
@@ -431,16 +564,67 @@ def article(word):
     return "an" if word[:1].lower() in "aeiou" else "a"
 
 
+# Words that take no article. Without this the generator wrote "a thunder is the
+# sound of..." and "a pliers grip harder than fingers can" - both of which teach the
+# model to put an article where English does not.
+PLURAL_ONLY = {"pliers", "callipers", "scales", "bellows", "tongs"}
+# Listed rather than derived: "a cloud", "an echo" and "a shadow" are perfectly good
+# English, so the test is whether the article is wrong, not whether the plural is
+# irregular.
+MASS = {
+    "thunder", "lightning", "steam", "ice", "smoke", "ash", "shade", "vinegar",
+    "frost", "dew", "fog", "hail", "salt", "sugar", "flour", "dough", "broth",
+    "compost", "pollen", "nectar", "sap", "yeast", "bark", "wind",
+}
+
+
+def name(thing):
+    """The thing as it appears in a sentence: "a kettle", "pliers", "thunder"."""
+    if thing in PLURAL_ONLY or thing in MASS:
+        return thing
+    return f"{article(thing)} {thing}"
+
+
+def words(thing):
+    """Everything a template needs to talk about one thing, agreeing with itself.
+
+    Pliers are plural and thunder takes no article, so "what is a pliers" and "a
+    thunder is" are two versions of the same mistake. Templates ask for {np} and
+    {is} rather than writing the article and the verb in by hand."""
+    np = name(thing)
+    plural_subject = thing in PLURAL_ONLY
+    return {
+        "thing": thing, "Thing": thing.capitalize(),
+        "np": np, "NP": np[0].upper() + np[1:],
+        "them": plural(thing),
+        "a": article(thing), "A": article(thing).capitalize(),
+        "it": "they" if plural_subject else "it",
+        "It": "They" if plural_subject else "It",
+        "its": "their" if plural_subject else "its",
+        "Its": "Their" if plural_subject else "Its",
+        "is": "are" if plural_subject else "is",
+        "Is": "Are" if plural_subject else "Is",
+        "does": "do" if plural_subject else "does",
+    }
+
+
 def known_turn(rng):
     """A question about something real, answered with the plain fact."""
     thing = rng.choice(list(FACTS))
-    ask = rng.choice(ASK).format(thing=thing, a=article(thing), them=plural(thing))
-    answer = rng.choice(ANSWER).format(
-        thing=thing, a=article(thing), A=article(thing).capitalize(),
-        fact=FACTS[thing], after=rng.choice(AFTER))
+    parts = words(thing)
+    ask = rng.choice(ASK).format(**parts)
+    answer = say_fact(rng, thing)
+    # A plural subject already carries its predicate in the plain form, which is what
+    # "they grip harder than fingers can" needs.
+    fact = FACTS[thing]
+    if thing in PLURAL_ONLY and inflectable(fact):
+        head, _, rest = fact.partition(" ")
+        fact = (base_form(head) + " " + rest).strip()
     thought = rng.choice(KNOWN_THOUGHT).format(
-        thing=thing, Thing=thing.capitalize(), a=article(thing), them=plural(thing),
-        A=article(thing).capitalize(), fact=FACTS[thing])
+        fact=fact, **parts,
+        # The working gets the same treatment. A thought that always contains the
+        # predicate verbatim is another 200 fixed strings to recite.
+        said=say_fact(rng, thing, with_after=False))
     return ask, dress(rng, answer), thought
 
 
@@ -456,11 +640,9 @@ def unknown_turn(rng):
 
 def clarify_turn(rng):
     thing = rng.choice(list(FACTS))
-    ask = rng.choice(CLARIFY_ASK).format(thing=thing, a=article(thing),
-                                         them=plural(thing))
-    thought = rng.choice(CLARIFY_THOUGHT).format(thing=thing, a=article(thing),
-                                                 them=plural(thing))
-    reply = rng.choice(CLARIFY).format(thing=thing, a=article(thing), them=plural(thing))
+    ask = rng.choice(CLARIFY_ASK).format(**words(thing))
+    thought = rng.choice(CLARIFY_THOUGHT).format(**words(thing))
+    reply = rng.choice(CLARIFY).format(**words(thing))
     return ask, dress(rng, reply), thought
 
 

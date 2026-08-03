@@ -163,14 +163,33 @@ def main():
     parser.add_argument("--models_dir", default=versions.MODELS_DIR)
     parser.add_argument("--fresh", action="store_true",
                         help="Ignore any existing checkpoint and train from scratch.")
+    parser.add_argument("--log", default="",
+                        help="Also write progress to this file, flushed every line, so "
+                             "a run can be watched from another window. Shell "
+                             "redirection cannot do this: Python block-buffers stdout "
+                             "when it is not a terminal, and the file stays empty for "
+                             "minutes at a time.")
     args = parser.parse_args()
+
+    # Everything printed from here on goes to the terminal and, if asked, to the log.
+    log_file = None
+    if args.log:
+        os.makedirs(os.path.dirname(os.path.abspath(args.log)), exist_ok=True)
+        log_file = open(args.log, "w", encoding="utf-8", buffering=1)
+
+    def say(*parts):
+        line = " ".join(str(p) for p in parts)
+        print(line, flush=True)
+        if log_file:
+            log_file.write(line + "\n")
+            log_file.flush()      # buffering=1 is line-buffered; be explicit anyway
 
     device = args.device
     if device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
     if device == "cuda" and not torch.cuda.is_available():
         raise SystemExit("No CUDA device available. Use --device cpu.")
-    print(f"Using device: {device}")
+    say(f"Using device: {device}")
     if device == "cuda":
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
@@ -184,7 +203,7 @@ def main():
     resumed = False
 
     if os.path.exists(checkpoint_path) and not args.fresh:
-        print(f"Found existing checkpoint at {checkpoint_path}, resuming training...")
+        say(f"Found existing checkpoint at {checkpoint_path}, resuming training...")
         ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
         config = ckpt["config"]
         stoi, itos = ckpt["stoi"], ckpt["itos"]
@@ -196,7 +215,7 @@ def main():
         arch_flags = [f for f in ("block_size", "n_layer", "n_head", "n_embd")
                       if getattr(args, f) is not None]
         if arch_flags or args.preset != parser.get_default("preset"):
-            print(f"  NOTE: architecture is fixed by the checkpoint "
+            say(f"  NOTE: architecture is fixed by the checkpoint "
                   f"(n_layer={config.n_layer}, n_embd={config.n_embd}, block_size={config.block_size}). "
                   f"Pass --fresh to rebuild with a different size.")
 
@@ -212,16 +231,16 @@ def main():
         for key in ("block_size", "n_layer", "n_head", "n_embd"):
             if getattr(args, key) is not None:
                 arch[key] = getattr(args, key)
-        print(f"Architecture: {args.preset} preset -> {arch}")
+        say(f"Architecture: {args.preset} preset -> {arch}")
         config = GPTConfig(vocab_size=len(stoi), dropout=args.dropout, **arch)
         model = GPT(config).to(device)
 
     n_params = sum(p.numel() for p in model.parameters())
-    print(f"Vocab size: {config.vocab_size} | Params: {n_params:,} | Training chars: {len(text):,}")
+    say(f"Vocab size: {config.vocab_size} | Params: {n_params:,} | Training chars: {len(text):,}")
     if len(text) < n_params / 20:
-        print("  WARNING: the corpus is small relative to the model. Expect memorization -- "
+        say("  WARNING: the corpus is small relative to the model. Expect memorization -- "
               "add more text or use a smaller --preset.")
-    print(f"{'Resumed' if resumed else 'Fresh'} model, training for up to {args.steps} steps "
+    say(f"{'Resumed' if resumed else 'Fresh'} model, training for up to {args.steps} steps "
           f"(dropout={args.dropout}, weight_decay={args.weight_decay})")
 
     data = load_ids(args.data, stoi, device)
@@ -229,21 +248,21 @@ def main():
     if args.val_data and os.path.exists(args.val_data):
         train_data = data
         val_data = load_ids(args.val_data, stoi, device)
-        print(f"Validating on {args.val_data} ({val_data.numel():,} chars, separate from training)")
+        say(f"Validating on {args.val_data} ({val_data.numel():,} chars, separate from training)")
     else:
         n = int((1 - args.val_frac) * len(data))
         train_data, val_data = data[:n], data[n:]
-        print(f"Validating on the last {args.val_frac:.0%} of {args.data}")
+        say(f"Validating on the last {args.val_frac:.0%} of {args.data}")
 
     if len(val_data) <= config.block_size + 1:
-        print("  WARNING: not enough validation text; validation loss will not be meaningful.")
+        say("  WARNING: not enough validation text; validation loss will not be meaningful.")
         train_data, val_data = data, data
 
     use_bf16 = device == "cuda" and torch.cuda.is_bf16_supported()
     autocast = (torch.autocast("cuda", dtype=torch.bfloat16) if use_bf16
                 else contextlib.nullcontext())
     if use_bf16:
-        print("Using bfloat16 autocast (master weights stay float32)")
+        say("Using bfloat16 autocast (master weights stay float32)")
 
     optimizer = make_optimizer(model, args.lr, args.weight_decay, device)
 
@@ -290,11 +309,11 @@ def main():
                 stale_evals += 1
 
             flag = " *best*" if improved else f"  (no gain x{stale_evals})"
-            print(f"step {step}/{args.steps}: train {losses['train']:.4f} | val {losses['val']:.4f} "
+            say(f"step {step}/{args.steps}: train {losses['train']:.4f} | val {losses['val']:.4f} "
                   f"| gap {gap:+.4f} | lr {lr:.2e}{flag}")
 
             if args.patience and stale_evals >= args.patience:
-                print(f"Early stop: validation loss has not improved in {args.patience} "
+                say(f"Early stop: validation loss has not improved in {args.patience} "
                       "evals. The best weights are already saved.")
                 break
 
@@ -304,9 +323,9 @@ def main():
         # Reload the best weights so the export matches the saved checkpoint.
         best = torch.load(checkpoint_path, map_location=device, weights_only=False)
         model.load_state_dict(best["state_dict"])
-        print(f"Best {args.select_by} loss: {best_val:.4f}")
+        say(f"Best {args.select_by} loss: {best_val:.4f}")
 
-    print(f"Saved full checkpoint to {checkpoint_path}")
+    say(f"Saved full checkpoint to {checkpoint_path}")
 
     if args.compressed_out:
         compressed_path = os.path.join(args.out_dir, args.compressed_out)
@@ -317,8 +336,8 @@ def main():
                       group_size=args.group_size)
     full_size = os.path.getsize(checkpoint_path)
     compressed_size = os.path.getsize(compressed_path)
-    print(f"Exported compressed neural data to {compressed_path} ({args.bits}-bit, 3 lines)")
-    print(f"Full checkpoint: {full_size:,} bytes | Compressed export: {compressed_size:,} bytes "
+    say(f"Exported compressed neural data to {compressed_path} ({args.bits}-bit, 3 lines)")
+    say(f"Full checkpoint: {full_size:,} bytes | Compressed export: {compressed_size:,} bytes "
           f"({100 * compressed_size / full_size:.1f}% of full, "
           f"{8 * compressed_size / n_params:.2f} bits/param on disk)")
 

@@ -4,14 +4,14 @@ The corpus that the released models learned from is committed, so you can train
 without generating anything:
 
 ```bash
-py slm/train.py --data data/training.txt --val_data data/heldout.txt     --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
+py slm/train.py --data data/training.txt --val_data data/heldout.txt     --preset large --block_size 384 --fresh --dropout 0.0 --steps 32000 --select_by train
 ```
 
 To generate your own instead:
 
 ```bash
 py corpus/chat/make_corpus.py --target_chars 20000000 --composed 0.95 --think 1.0
-py slm/train.py --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
+py slm/train.py --preset large --block_size 384 --fresh --dropout 0.0 --steps 32000 --select_by train
 ```
 
 A generated corpus lands in `build/`, which is not in git because it changes every
@@ -84,23 +84,25 @@ At 0.72 characters per parameter, memorizing the corpus is a cheaper way for lar
 to cut loss than learning anything, so it did. On 20M characters the same three
 runs invert completely:
 
-| on 30M characters | small_1.4 | medium_1.3 | large_1.2 |
+| on the 30M composing corpus | small_1.5 | medium_1.4 | large_1.3 |
 |---|---|---|---|
 | chars per parameter | 78 | 35 | 11 |
-| held-out loss | 0.23 bits/char | 0.23 | **0.22** |
-| generalization gap | **+0.018** | +0.026 | +0.023 |
-| arithmetic overall | 26% | 68% | **81%** |
-| 3-digit addition | 8% | 84% | **100%** |
-| 3-digit subtraction | 0% | 16% | **56%** |
-| novelty - not recited | 7% | **19%** | 4% |
+| held-out loss | 0.23 bits/char | 0.21 | **0.21** |
+| generalization gap | **+0.0100** | +0.0114 | +0.0154 |
+| new sentences - found nowhere in the corpus | **57%** | 52% | **57%** |
+| arithmetic overall | 35% | 83% | **91%** |
+| 3-digit addition | 32% | 88% | **100%** |
+| 3-digit subtraction | 0% | 44% | **72%** |
 
-Held-out loss fell by a third against the 20M corpus and the gap stayed small, so the
-extra data went into generalizing rather than memorizing. Novelty is the one number
-that got worse, and it needs care: measured against text the model never saw it is
-30% rather than 19%, because the generators produce the same strings in both files.
-Every fact has exactly one predicate, so a correct answer is necessarily a string that
-appears in training. Raising it means paraphrasing the facts, not training
-differently.
+Two things changed together here and both are worth separating. The corpus now says
+each fact four ways rather than one, which took whole replies found nowhere in
+training from 69% to 79% on `large`. And multiplication gained a method that works for
+every pair of numbers, which took the overall arithmetic score from 81% to 91% - see
+[releases.md](releases.md) for why teaching only special cases went wrong.
+
+Steps went from 20,000 to 32,000, and that matters more than it looks: on the varied
+corpus, `medium` scored 55% arithmetic at 20,000 steps and 75% at 32,000. More ways of
+saying the same thing means more passes before the copying circuit matures.
 
 Arithmetic goes 25 -> 65 -> 83, and large now recites *less* than small. Held-out
 loss improved by a third across the board, because none of the three can afford to

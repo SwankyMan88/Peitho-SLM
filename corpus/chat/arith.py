@@ -196,25 +196,66 @@ def mul_distribute(rng, lhs, rhs):
             f". Add those: {' + '.join(str(lhs * p) for p in parts)} = {lhs * rhs}.")
 
 
-def mul_double(rng, lhs, rhs):
-    if rhs not in (2, 4, 8):
+def mul_by_place(rng, lhs, rhs):
+    """Split the wide number by place value, the way addition does.
+
+    This is the method the corpus was missing. Every other multiplication method
+    here is a special case that only fires for particular numbers, so the model saw
+    "9 is one less than 10" and "4 is doubling twice" and learned the phrasings
+    without their conditions - then applied them to 7 and to 5, answering 550 * 7
+    with 550 * 9. A method that works for every pair gives it somewhere to go."""
+    wide, narrow = max(lhs, rhs), min(lhs, rhs)
+    w = width_of(wide)
+    if w < 2 or narrow > 12:
         return None
+    parts = [p for p in reversed(places(wide, w)) if p]
+    if len(parts) < 2:
+        return None
+    pieces = [f"{p} * {narrow} = {p * narrow}" for p in parts]
+    return ("Split by place value: " + ", ".join(pieces) +
+            f". Add those: {' + '.join(str(p * narrow) for p in parts)} = {lhs * rhs}.")
+
+
+def mul_double(rng, lhs, rhs):
+    # Only for powers of two, and the count of doublings is stated so the condition
+    # is visible in the text rather than implied by which examples exist.
+    if rhs not in (2, 4, 8, 16):
+        return None
+    times = rhs.bit_length() - 1
     steps, value = [], lhs
-    for _ in range(rhs.bit_length() - 1):
+    for _ in range(times):
         value *= 2
         steps.append(value)
     if rhs == 2:
         return f"Doubling {lhs}: {lhs} + {lhs} = {value}."
-    return (f"{rhs} is doubling {rhs.bit_length() - 1} times. "
-            f"{lhs} becomes " + join(steps) + ".")
+    return (f"{rhs} is 2 doubled {times - 1} more times, so double {lhs} {times} "
+            f"times: " + join(steps) + ".")
+
+
+def mul_half_ten(rng, lhs, rhs):
+    """Times five is times ten, halved - which is why five is not a doubling."""
+    # Always exact: lhs * 10 ends in a zero, so halving it never leaves a remainder.
+    if rhs != 5:
+        return None
+    return (f"5 is half of 10. {lhs} * 10 = {lhs * 10}, and half of that is "
+            f"{lhs * rhs}.")
 
 
 def mul_near_ten(rng, lhs, rhs):
-    if rhs % 10 != 9 or rhs < 9:
+    """Round the multiplier up to ten and take the difference back off.
+
+    Generalized from "one less than ten" to any gap, and the gap is multiplied out
+    rather than asserted. Taught only for 9, the model applied it to 7 as though 7
+    were also one less than 10."""
+    # Gap of three at most, or it stops being a shortcut: "5 is 5 less than 10" ends
+    # up taking off exactly the answer.
+    if not 7 <= rhs <= 9:
         return None
-    up = rhs + 1
-    return (f"{rhs} is one less than {up}. {lhs} * {up} = {lhs * up}, "
-            f"then take off one {lhs}: {lhs * rhs}.")
+    gap = 10 - rhs
+    taken = lhs * gap
+    lots = f"one {lhs}" if gap == 1 else f"{gap} lots of {lhs} ({taken})"
+    return (f"{rhs} is {gap} less than 10. {lhs} * 10 = {lhs * 10}, "
+            f"then take off {lots}: {lhs * 10} - {taken} = {lhs * rhs}.")
 
 
 def mul_repeated(rng, lhs, rhs):
@@ -294,7 +335,10 @@ def div_small(rng, lhs, rhs):
 METHODS = {
     "+": [add_place_value, add_carry, add_round, add_hop, add_small],
     "-": [sub_count_up, sub_in_parts, sub_borrow, sub_round, sub_negative, sub_small],
-    "*": [mul_distribute, mul_double, mul_near_ten, mul_repeated, mul_small],
+    # mul_by_place twice, so the general method is drawn as often as the special
+    # cases put together. A method that always applies should be the habit.
+    "*": [mul_by_place, mul_by_place, mul_distribute, mul_double, mul_half_ten,
+          mul_near_ten, mul_repeated, mul_small],
     "/": [div_how_many, div_chunk, div_remainder, div_halve, div_small],
 }
 

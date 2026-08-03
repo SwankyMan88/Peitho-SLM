@@ -23,19 +23,26 @@ thousandth the size of the models people usually mean. They hold a short
 conversation, compose sentences they have never seen, and work arithmetic out step by
 step. They also get things wrong confidently, which is the part to watch.
 
-| | small_1.4 | medium_1.3 | medium_think_1.3 | large_1.2 |
-|---|---|---|---|---|
-| parameters | 382K | 855K | 855K | 2.7M |
-| export size | **509 KB** | 1.1 MB | 1.1 MB | 3.6 MB |
-| held-out loss | 0.23 bits/char | 0.23 | 0.23 | **0.22** |
-| spelling (real words) | **100%** | 99% | **100%** | **100%** |
-| arithmetic on unseen sums | 26% | 68% | 68% | **81%** |
-| 3-digit addition | 8% | 84% | 92% | **100%** |
-| works out loud first | yes | yes | yes | yes |
+| | small_1.5 | medium_1.4 | large_1.3 |
+|---|---|---|---|
+| parameters | 382K | 855K | 2.7M |
+| export size | **509 KB** | 1.1 MB | 3.6 MB |
+| held-out loss | 0.23 bits/char | 0.21 | **0.21** |
+| spelling (real words) | 99% | **100%** | **100%** |
+| new sentences — replies found nowhere in the corpus | **57%** | 52% | **57%** |
+| arithmetic on unseen sums | 35% | 83% | **91%** |
+| 3-digit addition | 32% | 88% | **100%** |
+| 2-digit multiplication | 68% | 88% | **92%** |
+| works out loud first | yes | yes | yes |
 
 Use **large** if you can spare the download and **small** if the weights have to be
-pasted somewhere by hand — 509 KB is the size that fits in a text box. A fifth model,
-**greeter**, is 61 KB and does nothing but open a conversation.
+pasted somewhere by hand — 509 KB is the size that fits in a text box. **greeter** is
+65 KB and does nothing but open a conversation.
+
+"New sentences" is the honest measure of whether it composes: replies that appear
+nowhere in the 30 million characters it trained on. What *is* memorized is the
+substance of a fact — a correct answer about a compass has to say it points north.
+The sentence around it is the model's own.
 
 Every model in detail, including what none of them can do:
 [docs/models.md](docs/models.md).
@@ -46,14 +53,14 @@ The corpus is in the repository, so training needs nothing generated first:
 
 ```bash
 pip install -r requirements.txt
-py slm/train.py --data data/training.txt --val_data data/heldout.txt --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
+py slm/train.py --data data/training.txt --val_data data/heldout.txt --preset large --block_size 384 --fresh --dropout 0.0 --steps 32000 --select_by train
 ```
 
 To build a corpus of your own instead — different size, different mix, your own
 hand-written conversations in `corpus/chat/conversations.txt`:
 
 ```bash
-py corpus/chat/make_corpus.py --target_chars 20000000 --composed 0.95 --think 1.0
+py corpus/chat/make_corpus.py --target_chars 30000000 --composed 0.97 --think 1.0
 ```
 
 Then talk to it, measure it, or run it with no PyTorch at all:
@@ -92,7 +99,7 @@ py -m http.server
 | `slm/versions.py`, `slm/paths.py` | Where exports are named and where everything lives. |
 | `peitho.html` | The browser page. Carries no weights: it finds the exports in `models/` itself. |
 | `models/` | The exports, described one by one in [docs/models.md](docs/models.md). |
-| `data/` | **The corpus the released models were trained on**, ~20M characters, plus its recipe and hashes. Train from this directly. |
+| `data/` | **The corpus the released models were trained on**, 30M characters, plus its recipe and hashes. Train from this directly. |
 | `corpus/` | `conversations.txt` (hand-written — **edit this to change what it knows**), plus the generators: `talk.py` for conversation, `arith.py` for worked sums, `thinking.py` for turns that work something out first, `make_corpus.py` to assemble them. |
 | `tools/` | `make_html.py` bakes an export into a page that cannot fetch; `make_js_models.py` mirrors exports as `.js`; `speed_test.py` measures training throughput. |
 | `build/` | Everything regenerable — corpus, caches, checkpoints. Not in git. |
@@ -102,20 +109,30 @@ py -m http.server
 
 Nothing is hard-coded. The page contains no arithmetic — no `eval`, no digit parsing,
 no lookup table — and there is nothing to retrieve from the weights either, because
-almost every problem in a 20M-character corpus is a different one. What the model learned is a
+almost every problem in a 30M-character corpus is a different one. What the model learned is a
 *method*, from examples like these:
 
 ```
 Tens: 20 + 10 = 30. Ones: 4 + 5 = 9. Add those up: 30 + 9 = 39.
 Ones: 9 + 3 = 12, so write 2 and carry 1. Tens: ...
 62 is 8 short of 70. 14 + 70 = 84, then give back the 8: 76.
-9 is one less than 10. 7 * 10 = 70, then take off one 7: 63.
-6 * 10 = 60, leaving 36. 6 * 6 = 36. Together that is 10 + 6 = 16.
+Split by place value: 200 * 7 = 1400, 60 * 7 = 420, 6 * 7 = 42. Add those: 1400 + 420 + 42 = 1862.
+7 is 3 less than 10. 550 * 10 = 5500, then take off 3 lots of 550 (1650): 5500 - 1650 = 3850.
+5 is half of 10. 807 * 10 = 8070, and half of that is 4035.
 ```
 
 `corpus/chat/arith.py` solves each problem in Python — so the lesson is true — and offers
 several methods per problem, so no wording maps to one fixed reply and a follow-up
 ("show me another way") can rework the same problem differently to the same number.
+
+Every method has to work for **every** pair of numbers, and this is easy to get
+wrong. Multiplication once had only special cases - "9 is one less than 10", "4 is
+doubling twice" - so the model saw those phrasings hundreds of times and never saw
+their conditions fail. It learned them as *the* way to multiply and applied them
+anywhere: `550 * 7` came back as 4950, which is 550 * 9, with the working confidently
+explaining that 7 is one less than 10. Adding one method that always applies -
+splitting by place value, the way addition does - took three-digit multiplication from
+48% to 72% and the overall score from 84% to 91%.
 
 Working arithmetic is a **copying task before it is a counting one**: the operands have
 to be read out of the context before anything can be done to them. That circuit forms

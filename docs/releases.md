@@ -1,6 +1,127 @@
 # Releases
 
-## 1.6.0 — Teach it something while it runs
+## 1.6.0 — It writes its own sentences, and multiplies properly
+
+Two things this release is about. The model composes its answers rather than reciting
+them, and it stopped applying arithmetic methods to numbers they do not fit. It can
+also be taught new answers while it runs.
+
+### Composing rather than reciting
+
+The point of the project is a model that writes its own sentences. That was only half
+true, and the reason was in the corpus: every fact had exactly **one** phrasing.
+`FACTS["kettle"]` was "boils water", it went into one of ten templates, and so the
+informative half of every answer was one of 206 fixed strings. The packaging varied;
+the substance never did.
+
+Each fact is now said four ways, and the informative words differ between them:
+
+```
+A kettle boils water.
+A kettle will boil water.               <- as a job
+It is for boiling water.                <- as a purpose
+For boiling water, you want a kettle.
+```
+
+That took the number of distinct answers per fact from about ten to about twenty-two,
+and it forces the model to learn what a kettle *does* rather than which sentence
+follows the word "kettle".
+
+Measured on 150 fact questions, asking whether the reply appears anywhere in the 30
+million characters it trained on:
+
+| | replies that appear nowhere in the corpus |
+|---|---|
+| 1.5.0 large | 69% |
+| **1.6.0 large** | **79%** |
+
+```
+What is a compass?        Easy one. A compass points north, and that is the job. Roughly speaking.
+What does a lantern do?   In practice, a lantern is what holds a light so it can be carried. Does that help?
+What is an anvil for?     Easy one. An anvil gives you something solid to hammer against.
+```
+
+None of those sentences is in the training text. What *is* memorised is "points
+north" - the fact itself, which a correct answer has to contain.
+
+**The benchmark's old "novelty" number was misleading**, and it fooled me for an
+afternoon. It measures `1 - (longest verbatim prefix / reply length)`: how long the
+longest borrowed run of characters is. A correct answer must contain the fact, so
+that number is bounded from below by the content, and nothing moves it - not corpus
+variety, not sampling temperature, not the training recipe. The benchmark now reports
+**new sentences** alongside it: whole replies found nowhere in the training text,
+which is what people mean by composing.
+
+Doing this properly needed real grammar work in the generator: verb inflection with a
+syllable rule (`put` -> `putting`, but `deliver` -> `delivering`, not
+`deliverring`), plural-only nouns (`bellows push`, not `bellows pushes`), and mass
+nouns (`thunder is`, not `a thunder is`). Article and agreement errors went from 206
+per 20,000 generated turns to zero.
+
+### Arithmetic: methods taught without their conditions
+
+Multiplication had five methods and **every one was a special case**. `mul_double`
+only ever appeared for 2, 4 and 8. `mul_near_ten` only for 9. The model saw those
+phrasings hundreds of times and never once saw the condition fail, because no
+counterexample exists anywhere in the corpus - so it learned them as *the* way to
+multiply and picked by surface resemblance:
+
+```
+807 * 5   "5 is doubling 2 times. 807 becomes 1614 and 3228."   -> 3228, which is 807 * 4
+550 * 7   "7 is one less than 10. 550 * 10 = 5500, take off 550" -> 4950, which is 550 * 9
+```
+
+It was not miscalculating. It was confidently running the wrong procedure, with the
+arithmetic *inside* that procedure correct. Addition never had this failure, because
+`add_place_value` works for every pair of numbers - the model always had somewhere to
+go.
+
+So multiplication got the method it was missing, weighted to be drawn twice as often
+as any special case:
+
+```
+266 * 7:  Split by place value: 200 * 7 = 1400, 60 * 7 = 420, 6 * 7 = 42.
+          Add those: 1400 + 420 + 42 = 1862.
+```
+
+`mul_near_ten` was generalised from "one less than ten" to any gap up to three, with
+the gap multiplied out rather than asserted. `mul_half_ten` gives five a correct home
+(times ten, halved - always exact, since times ten ends in a zero). `mul_double` now
+states its count, putting the condition in the text instead of leaving it implied by
+which examples happen to exist.
+
+| large, three digits | 1.5.0 | 1.6.0 |
+|---|---|---|
+| addition | 100% | **100%** |
+| subtraction | 56% | **72%** |
+| multiplication | 48% | **72%** |
+| 2-digit multiplication | 68% | **92%** |
+| **overall, all sizes of sum** | **81%** | **91%** |
+
+The failures that remain are slips inside a correct method - `807 * 5` halves 8070 as
+4535 - rather than the wrong procedure confidently applied.
+
+### The three models
+
+Retrained on the corrected corpus, 32,000 steps rather than 20,000: the extra passes
+are what mature the arithmetic circuit, worth 20 points of arithmetic on medium.
+
+| | small_1.5 | medium_1.4 | large_1.3 |
+|---|---|---|---|
+| parameters | 382K | 855K | 2.7M |
+| export | **509 KB** | 1.1 MB | 3.6 MB |
+| held-out loss | 0.23 bits/char | 0.21 | **0.21** |
+| generalization gap | +0.0100 | +0.0114 | +0.0154 |
+| format - ends turn | 98% | 98% | **100%** |
+| spelling | 99% | **100%** | **100%** |
+| new sentences | **57%** | 52% | **57%** |
+| arithmetic overall | 35% | 83% | **91%** |
+| 3-digit addition | 32% | 88% | **100%** |
+
+Bigger is better at every size, which is the ordering that matters. `small` is still
+weak at arithmetic and that is a capacity limit, not a corpus one.
+
+### Teaching it while it runs
 
 `slm/learn.py` teaches a trained model a new answer in about a second. No training
 run, no GPU hours, no retraining — it loads the full-precision checkpoint, takes a
@@ -17,8 +138,11 @@ dozen gradient steps, and tells you honestly whether they worked.
 ```
 
 Two modes and one switch. In **teach** mode you give the question and the reply you
-wanted. In **chat** mode you have an ordinary conversation, and when a reply is
-wrong, `/teach <the reply you wanted>` corrects it on the spot.
+wanted. In **chat** mode you have an ordinary conversation, and when a reply is wrong,
+`/teach <the reply you wanted>` corrects it on the spot. `/export` writes the same
+versioned 3-line export `train.py` writes, so a taught model is not a special case:
+the page finds it, `standalone.py` runs it, and `versions.resolve` takes its base
+name.
 
 ### A lesson is four things at once
 
@@ -69,73 +193,19 @@ warning. A lesson costing more than one sum is undone automatically and reported
 * `tools/release.py` runs every suite, refuses to push if one fails, then pushes and
   tags. It adds no identity of its own and handles no tokens.
 
-### Does teaching make it memorise?
-
-Worth answering precisely, because the honest answer is not "no".
-
-**The model already recites, and always has.** Roughly half of all replies open with
-a string copied verbatim from `training.txt`. That is structural: every fact in the
-corpus has exactly one phrasing, so a *correct* answer about a kettle is necessarily
-a training string. What it does *not* do is overfit — the generalization gap is
-+0.023, so it predicts unseen text nearly as well as text it trained on.
-
-**A lesson memorises one fixed answer on purpose.** That is what teaching is. What it
-does not memorise is your exact wording: six of six phrasings never trained on still
-work.
-
-**Teaching did not make recitation worse.** Same 60 prompts, same sums, taught model
-against the model it came from:
-
-| | `large_1.2` | after ten lessons |
-|---|---|---|
-| novelty — not recited | 7% | **17%** |
-| verbatim copies | 55% | **48%** |
-| variety — distinct 3-grams | 96% | 96% |
-| held-out loss | 0.22 bits/char | 0.22 |
-| arithmetic overall | 81% | **82%** |
-
-It recites *less* than before, and untaught questions still vary run to run — a
-kettle came back as "In practice…", "Well…" and "Simple enough…" on three
-consecutive samples. Taught answers, by design, come back identically every time.
-
-### Measured limits
-
-Nothing here is hidden, because a tool that overstates what it did is worse than no
-tool.
-
-* **`small` is too small to teach.** 2 of 5 lessons held, and it paid for them
-  elsewhere. `medium` and `large` hold all five; `large` learns in 8 steps rather
-  than 12 and drifts +0.0007.
-* **Ten lessons is past comfortable.** Two of ten needed a second attempt, and one
-  was undone by the guard first.
-* **Similar questions interfere.** "What is my dog's name?" and "What is my brother
-  called?" are the same shape, and the later one can capture the earlier.
-* **A question that resembles a taught one can pull the taught answer in.** After ten
-  lessons, "What do you think about rain?" sometimes answers with "I can hold a
-  short conversation…", where the untaught model talked about rainbows. A
-  heavy-rehearsal pass fixed that and cost a taught lesson, so the trade was
-  declined.
-* **Do not teach arithmetic.** A worked sum fights the arithmetic already in the
-  model: it rarely carries over and it leaves replies ragged. A lesson that looks
-  like a sum now says so.
-* **Sampling has to be colder than ordinary chat.** A lesson makes the taught reply
-  a narrow path. Over four lessons, five samples each: temperature 0.2 returned the
-  taught answer 20/20 times, 0.35 managed 18, 0.7 only 14. `learn.py` chats at 0.2.
-* **It has no memory of you.** Say "my name is Guy" and it will still say it cannot
-  know your name — the corpus taught that refusal, and it fires even with the name
-  in view. Per-person memory needs corpus turns that demonstrate copying a name
-  across hundreds of examples, which is a retrain, not a lesson.
-
 ### Verified
 
-`tests/learning/test_learn.py` — 49 checks, added to CI — builds a throwaway model in
+`tests/learning/test_learn.py` - 49 checks, added to CI - builds a throwaway model in
 the test process, so it needs no GPU, no checkpoint and no corpus. All suites green:
-49 + 74 + 25 + 20.
+75 + 25 + 49 + 20.
 
 A ten-lesson model was taught by hand and checked four ways: 10/10 cold, 9/10 two
 exchanges into a conversation, 6/6 on phrasings never trained on, 10/10 through the
-8-bit export, 5/5 through the standard-library decoder, with arithmetic unchanged at
-4/6 and drift +0.0000.
+8-bit export, 5/5 through the standard-library decoder, with arithmetic unchanged and
+drift +0.0000.
+
+Every generated arithmetic working was checked against Python: 4,006 of them, zero
+where the final number is not the true answer.
 
 ## 1.5.0 — Longer conversations, a fifth model, and a folder for everything
 

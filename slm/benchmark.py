@@ -93,19 +93,22 @@ def split_thought(text):
     return thought.strip(), said.strip()
 
 
-def bench_generation(model, stoi, itos, config, device, prompts, train_text, word_set):
+def bench_generation(model, stoi, itos, config, device, prompts, train_text, word_set,
+                     temperature=0.7, top_k=40):
     stopped_count = 0
     lengths = []
     in_vocab = total_words = 0
     trigram_ratios = []
     exact_copies = 0
+    new_sentences = 0
     prefix_matches = []
     empties = 0
     thoughts = []
 
     for prompt_text in prompts:
         prompt = f"{START_MARK}\n{USER_MARK}{prompt_text}{END_MARK}\n{BOT_MARK}"
-        whole, stopped = reply_to(model, prompt, stoi, itos, config, device)
+        whole, stopped = reply_to(model, prompt, stoi, itos, config, device,
+                                  temperature=temperature, top_k=top_k)
         thought, text = split_thought(whole)
         thoughts.append(len(thought))
         stopped_count += stopped
@@ -124,6 +127,8 @@ def bench_generation(model, stoi, itos, config, device, prompts, train_text, wor
 
         if len(text) >= 20 and text in train_text:
             exact_copies += 1
+        else:
+            new_sentences += 1
         lo, hi = 0, len(text)
         while lo < hi:  # longest prefix of the reply that appears verbatim in training
             mid = (lo + hi + 1) // 2
@@ -142,6 +147,12 @@ def bench_generation(model, stoi, itos, config, device, prompts, train_text, wor
         "spelling": in_vocab / total_words if total_words else float("nan"),
         "variety": sum(trigram_ratios) / len(trigram_ratios) if trigram_ratios else float("nan"),
         "exact_copy": exact_copies / n,
+        # Whole replies that appear nowhere in the training text. The prefix measure
+        # above answers "how long is the longest borrowed run of characters", which a
+        # correct answer bounds from below - it has to contain the fact. This one
+        # answers the question people actually mean by composing: is the sentence it
+        # just produced a sentence it was shown, or one it put together?
+        "new_sentences": new_sentences / max(1, n - empties),
         "mean_copied_prefix": sum(prefix_matches) / len(prefix_matches) if prefix_matches else 0,
         "mean_thought": sum(thoughts) / n,
         "thinks": sum(1 for t in thoughts if t) / n,
@@ -208,6 +219,12 @@ def main():
     p.add_argument("--train_data", default=paths.TRAINING)
     p.add_argument("--heldout", default=paths.HELDOUT)
     p.add_argument("--gen_samples", type=int, default=40)
+    p.add_argument("--temperature", type=float, default=0.7,
+                   help="Sampling temperature for the generation section. Novelty and "
+                        "spelling trade directly against each other here, so either "
+                        "number only means something next to the temperature it was "
+                        "measured at.")
+    p.add_argument("--top_k", type=int, default=40)
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--skip_export", action="store_true")
     p.add_argument("--from_compressed", action="store_true",
@@ -252,14 +269,17 @@ def main():
     print(f"  generalization gap  {hl - tl:+.4f}       (large = memorizing)\n")
 
     # ---- generation quality
-    print(f"GENERATION  ({args.gen_samples} prompts)")
+    print(f"GENERATION  ({args.gen_samples} prompts, temperature {args.temperature}, "
+          f"top_k {args.top_k})")
     user_lines = re.findall(f"{USER_MARK}(.*?){END_MARK}", held_text)
     prompts = rng.sample(user_lines, min(args.gen_samples, len(user_lines)))
-    g = bench_generation(model, stoi, itos, config, device, prompts, train_text, word_set)
+    g = bench_generation(model, stoi, itos, config, device, prompts, train_text,
+                         word_set, temperature=args.temperature, top_k=args.top_k)
     print(f"  format (ends turn)   {bar(g['format_ok'])} {g['format_ok']:.0%}")
     print(f"  spelling (real words) {bar(g['spelling'])} {g['spelling']:.0%}")
     print(f"  variety (distinct 3g) {bar(g['variety'])} {g['variety']:.0%}")
-    print(f"  novelty (not recited) {bar(g['novelty'])} {g['novelty']:.0%}")
+    print(f"  new sentences        {bar(g['new_sentences'])} {g['new_sentences']:.0%}")
+    print(f"  novelty (longest borrowed run) {bar(g['novelty'])} {g['novelty']:.0%}")
     print(f"  mean reply length   {g['mean_len']:.0f} chars | empty replies {g['empty']:.0%}")
     if g["thinks"]:
         print(f"  thinks first        {g['thinks']:.0%} of replies | "

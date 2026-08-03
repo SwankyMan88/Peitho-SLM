@@ -7,22 +7,22 @@ the only part a person wrote by hand.
 
 | | training.txt | heldout.txt |
 |---|---|---|
-| characters | 30,001,835 | 1,801,756 |
-| conversations | 21,063 | 1,291 |
-| turns | 393,302 | 23,806 |
-| model turns that think first | 195,416 of 196,651 | 11,836 of 11,903 |
-| distinct characters | 80 | 80 |
+| characters | 30,000,724 | 1,801,888 |
+| conversations | 20,874 | 1,230 |
+| turns | 388,970 | 23,268 |
+| model turns that think first | 193,223 of 194,485 | 11,597 of 11,634 |
+| distinct characters | 82 | 82 |
 
 ```
-training.txt  sha256 e005337891013103d9e2ff5ef5a9509706d961166e54e03bc142b7cb82650520
-heldout.txt   sha256 b3137d7c3da71dfa5d9cbd6bb5200673598149affeed9305340d68f2753670a0
+training.txt  sha256 1eb88a0e8d8b0a36e485228035190f785743ad6d46946e50fe080bd6e97535c4
+heldout.txt   sha256 9d95c5bde34b6f6d2e97f6e135bb0f710b27b4fb45305d8fa28e6ba057d1c0cf
 ```
 
 ## Train on it
 
 ```bash
 py train.py --data data/training.txt --val_data data/heldout.txt \
-    --preset large --block_size 384 --fresh --dropout 0.0 --steps 20000 --select_by train
+    --preset large --block_size 384 --fresh --dropout 0.0 --steps 32000 --select_by train
 ```
 
 Held-out conversations never appear in training, so the validation loss means
@@ -32,12 +32,10 @@ something. Both files use the turn markers described in
 ## Regenerate it
 
 ```bash
-py corpus/chat/make_corpus.py --target_chars 30000000 --composed 0.97 --think 1.0
+py corpus/chat/make_corpus.py --target_chars 20000000 --composed 0.95 --think 1.0
 py tools/publish_corpus.py
 ```
 
 The generators are seeded, so the same command on the same commit reproduces these
 files byte for byte - the hashes above are worth checking if you change anything in
 `corpus/` and want to know whether you changed the corpus too.
-
-Models trained on this corpus: small_1.4, medium_1.3, medium_think_1.3, large_1.2.

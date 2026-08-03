@@ -8,23 +8,26 @@ trained on, and where it falls over.
 
 | | for | size | when not to |
 |---|---|---|---|
-| `small_1.4` | pasting the weights somewhere by hand | **509 KB** | when you can spare a bigger download |
-| `medium_1.3` | a reasonable default | 1.1 MB | when 509 KB is the budget |
-| `medium_think_1.3` | the same, with the working kept separate | 1.1 MB | when you need every byte |
-| `large_1.2` | the best writing and arithmetic | 3.6 MB | on a slow connection, or in a text box |
-| `greeter_1.1` | one job: opening a conversation | **65 KB** | anything else — it cannot answer |
+| `small_1.5` | pasting the weights somewhere by hand | **509 KB** | when you can spare a bigger download |
+| `medium_1.4` | a reasonable default | 1.1 MB | when 509 KB is the budget |
+| `large_1.3` | the best writing and arithmetic | 3.6 MB | on a slow connection, or in a text box |
+| `medium_think_1.3` | kept from 1.5.0; every model thinks now, so this is no longer a separate kind | 1.1 MB | anything - prefer `medium_1.4` |
+| `greeter_1.1` | one job: opening a conversation | **65 KB** | anything else - it cannot answer |
 
-Measured on the 30M-character corpus, same 225 sums for each:
+Measured on the 30M-character composing corpus, same 225 sums for each:
 
-| | small_1.4 | medium_1.3 | medium_think_1.3 | large_1.2 |
-|---|---|---|---|---|
-| held-out loss | 0.23 bits/char | 0.23 | 0.23 | **0.22** |
-| generalization gap | **+0.018** | +0.026 | +0.025 | +0.023 |
-| format — ends turn | 96% | **100%** | 96% | **100%** |
-| spelling | **100%** | 99% | **100%** | **100%** |
-| arithmetic overall | 26% | 68% | 68% | **81%** |
-| 3-digit addition | 8% | 84% | 92% | **100%** |
-| 3-digit subtraction | 0% | 16% | 12% | **56%** |
+| | small_1.5 | medium_1.4 | large_1.3 |
+|---|---|---|---|
+| held-out loss | 0.23 bits/char | 0.21 | **0.21** |
+| generalization gap | +0.0100 | +0.0114 | +0.0154 |
+| format - ends turn | 98% | 98% | **100%** |
+| spelling | 99% | **100%** | **100%** |
+| new sentences - found nowhere in the corpus | **57%** | 52% | **57%** |
+| arithmetic overall | 35% | 83% | **91%** |
+| 3-digit addition | 32% | 88% | **100%** |
+| 3-digit subtraction | 0% | 44% | **72%** |
+| 2-digit multiplication | 68% | 88% | **92%** |
+| 3-digit multiplication | 12% | 56% | **72%** |
 
 `peitho.html` picks the smallest `small_*` it finds, because that is the quickest to
 fetch and unpack. Change `START_WITH` near the top of its script to open with another.
