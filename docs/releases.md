@@ -1,5 +1,142 @@
 # Releases
 
+## 1.6.0 — Teach it something while it runs
+
+`slm/learn.py` teaches a trained model a new answer in about a second. No training
+run, no GPU hours, no retraining — it loads the full-precision checkpoint, takes a
+dozen gradient steps, and tells you honestly whether they worked.
+
+```
+[teach] Ask: Who made you?
+        Say: SwankyMan built me from scratch! His profile is on GitHub under SwankyMan88.
+  taught 7 wordings in 16 steps, loss 3.153 -> 0.021
+  held back "Hey - who made you" -> "SwankyMan built me from scratch! His profile is on GitHub under SwankyMan88."
+  generalized (100% match to what you taught)
+  drift from the original model: +0.0013
+  sums it can still do: 4/6
+```
+
+Two modes and one switch. In **teach** mode you give the question and the reply you
+wanted. In **chat** mode you have an ordinary conversation, and when a reply is
+wrong, `/teach <the reply you wanted>` corrects it on the spot.
+
+### A lesson is four things at once
+
+One example taught one way only memorises the keystrokes. Each of these was
+measured against leaving it out:
+
+| | with | without |
+|---|---|---|
+| the question reworded seven ways | **4/4** unseen phrasings recognised | 1/4 |
+| every wording taught at three positions | **10/10** recalled mid-conversation | 4/10 |
+| slices of the corpus rehearsed alongside | drift +0.05 | **+4.15** — it answers *everything* with the taught line |
+| earlier lessons rehearsed too | **4/5** lessons remembered | 1/5, and the replies turn to word salad |
+
+The third row is the one that matters most: without rehearsal, pushed hard, the
+model stops being a model. The second was a surprise — positional embeddings are
+learned, so the same question at the start of a chat and four exchanges in are
+genuinely different inputs, and a lesson taught only at the start fires only there.
+
+One wording is **held back from every lesson**, so "did it learn?" is answered with
+a phrasing it never trained on rather than with a loss number.
+
+### It watches what a lesson costs
+
+Two measurements, because one is not enough. **Drift** is the loss on a fixed sample
+of the corpus. **Six fixed sums** are re-checked after every lesson with greedy
+sampling, so the result is deterministic.
+
+The sums exist because drift missed real damage: three lessons once moved the probe
+by +0.037 — nothing, apparently — while taking arithmetic from 4/6 to 0/6.
+Arithmetic is the most fragile thing the model does, which makes it the best early
+warning. A lesson costing more than one sum is undone automatically and reported.
+
+### Carrying on tomorrow
+
+* `--remember <lessons.jsonl>` replays an earlier session's lessons so continuing
+  the next day does not cost what was taught the day before. Rehearsal works from a
+  list in memory, which a reloaded checkpoint does not have — without this, fact
+  eleven quietly costs facts one to ten.
+* `/polish` trains every lesson together, so the newest stops winning ties. After
+  ten lessons "Who are you?" had started answering with whatever came last; this
+  took rephrasings from 5/6 to 6/6 at no cost.
+* `/export` writes the same versioned 3-line export `train.py` writes. A taught
+  model is not a special case: `peitho.html` finds `models/taught_1.0.txt` by the
+  same probe it uses for the released models and offers it as "Taught 1.0",
+  `standalone.py --model taught` runs it with no PyTorch at all, and
+  `versions.resolve("taught")` takes the bare base name. Taught exports are
+  gitignored — they hold your facts, not the project's.
+* `tools/release.py` runs every suite, refuses to push if one fails, then pushes and
+  tags. It adds no identity of its own and handles no tokens.
+
+### Does teaching make it memorise?
+
+Worth answering precisely, because the honest answer is not "no".
+
+**The model already recites, and always has.** Roughly half of all replies open with
+a string copied verbatim from `training.txt`. That is structural: every fact in the
+corpus has exactly one phrasing, so a *correct* answer about a kettle is necessarily
+a training string. What it does *not* do is overfit — the generalization gap is
++0.023, so it predicts unseen text nearly as well as text it trained on.
+
+**A lesson memorises one fixed answer on purpose.** That is what teaching is. What it
+does not memorise is your exact wording: six of six phrasings never trained on still
+work.
+
+**Teaching did not make recitation worse.** Same 60 prompts, same sums, taught model
+against the model it came from:
+
+| | `large_1.2` | after ten lessons |
+|---|---|---|
+| novelty — not recited | 7% | **17%** |
+| verbatim copies | 55% | **48%** |
+| variety — distinct 3-grams | 96% | 96% |
+| held-out loss | 0.22 bits/char | 0.22 |
+| arithmetic overall | 81% | **82%** |
+
+It recites *less* than before, and untaught questions still vary run to run — a
+kettle came back as "In practice…", "Well…" and "Simple enough…" on three
+consecutive samples. Taught answers, by design, come back identically every time.
+
+### Measured limits
+
+Nothing here is hidden, because a tool that overstates what it did is worse than no
+tool.
+
+* **`small` is too small to teach.** 2 of 5 lessons held, and it paid for them
+  elsewhere. `medium` and `large` hold all five; `large` learns in 8 steps rather
+  than 12 and drifts +0.0007.
+* **Ten lessons is past comfortable.** Two of ten needed a second attempt, and one
+  was undone by the guard first.
+* **Similar questions interfere.** "What is my dog's name?" and "What is my brother
+  called?" are the same shape, and the later one can capture the earlier.
+* **A question that resembles a taught one can pull the taught answer in.** After ten
+  lessons, "What do you think about rain?" sometimes answers with "I can hold a
+  short conversation…", where the untaught model talked about rainbows. A
+  heavy-rehearsal pass fixed that and cost a taught lesson, so the trade was
+  declined.
+* **Do not teach arithmetic.** A worked sum fights the arithmetic already in the
+  model: it rarely carries over and it leaves replies ragged. A lesson that looks
+  like a sum now says so.
+* **Sampling has to be colder than ordinary chat.** A lesson makes the taught reply
+  a narrow path. Over four lessons, five samples each: temperature 0.2 returned the
+  taught answer 20/20 times, 0.35 managed 18, 0.7 only 14. `learn.py` chats at 0.2.
+* **It has no memory of you.** Say "my name is Guy" and it will still say it cannot
+  know your name — the corpus taught that refusal, and it fires even with the name
+  in view. Per-person memory needs corpus turns that demonstrate copying a name
+  across hundreds of examples, which is a retrain, not a lesson.
+
+### Verified
+
+`tests/learning/test_learn.py` — 49 checks, added to CI — builds a throwaway model in
+the test process, so it needs no GPU, no checkpoint and no corpus. All suites green:
+49 + 74 + 25 + 20.
+
+A ten-lesson model was taught by hand and checked four ways: 10/10 cold, 9/10 two
+exchanges into a conversation, 6/6 on phrasings never trained on, 10/10 through the
+8-bit export, 5/5 through the standard-library decoder, with arithmetic unchanged at
+4/6 and drift +0.0000.
+
 ## 1.5.0 — Longer conversations, a fifth model, and a folder for everything
 
 ### Conversations that hold together
