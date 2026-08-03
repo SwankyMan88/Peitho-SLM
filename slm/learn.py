@@ -315,7 +315,10 @@ class Teacher:
         worse, not better: 3, 2 and 0 of six sums kept against 3, 4 and 4 for
         uniform sampling. Rehearsing a skill narrowly is not the same as keeping
         it. Uniform stays."""
-        if self.replay is None:
+        # count <= 0 means rehearsal is switched off. Returning an empty batch would
+        # put a zero-row tensor through the model, which is a shape some torch
+        # versions accept and some refuse.
+        if self.replay is None or count < 1:
             return None
         block = self.config.block_size
         high = self.replay.numel() - block - 1
