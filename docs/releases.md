@@ -1,5 +1,47 @@
 # Releases
 
+## 1.7.0 — Ten million weights, and it remembers what you told it
+
+The model is four times the size of the largest in 1.6.0, holds twice as much
+conversation in view, and is the first of these that can answer a question about
+something you said two turns ago. Exports are also named for what they are.
+
+### It remembers, because the corpus finally taught it to
+
+`xxl_10m1_1.0` is 10.1M weights, 8 layers, 320 wide, with 768 characters of context -
+double the old window. Told "my name is Colin and my dog is called Pepper", asked
+about the dog after an unrelated sum, it answers "You said your dog is called Pepper."
+Nothing in the older models could do that, and neither could this one until the corpus
+carried the shape: `corpus/recall/make_recall.py` writes conversations where a fact is
+given early and asked about later, a third of them corrections ("no, it was Colin"),
+a third about something never said, where the honest answer is to say so.
+
+Size alone did not do it. Two 10M models trained on the same 120M characters without
+those drills scored 0% and 14% on the memory probes; with them, 57%.
+
+`corpus/identity/make_identity.py` fixes the other gap: asked its own name, it used to
+answer with whatever the surrounding data suggested - a booking service, a museum. It
+now knows it is called Peitho, and can keep your name and its own apart.
+
+### Names that say what they are
+
+`Xxl 1.2` told you nothing about the download. Every export now carries its weight
+count: `small_382k_1.5`, `medium_855k_1.4`, `large_2m8_1.3`, `xl_4m1_1.0`,
+`xxl_10m1_1.0`, and the picker shows the version and megabytes beside each one. Seven
+superseded experiments were removed.
+
+### The page
+
+Replies are plain text with the working greyed out beside a rule; only the person gets
+a bubble. The effort dial writes 1, 2, 3, 5 or 8 whole drafts and keeps the one the
+drafts agree on, measured at 1.7s and 121 forward passes for one draft against 20.9s
+and 1,439 for eight - an earlier version voted on each letter instead, which cost
+0.0002 ms and therefore did nothing. While it drafts it says so, over a turning mark
+drawn as inline SVG so it survives a sandbox that allows no assets.
+
+`train.py` learned to pause and resume exactly where it stopped, which paid for itself
+the first time a 22-hour run met a reboot.
+
 ## 1.6.0 — It writes its own sentences, and multiplies properly
 
 Two things this release is about. The model composes its answers rather than reciting
