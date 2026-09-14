@@ -1,5 +1,15 @@
 # Releases
 
+## 1.7.1 — The script-tag copies register under their own names again
+
+Renaming the exports moved the `.js` files but not the name written inside them:
+`greeter_47k_1.1.js` still announced itself as `greeter_1.1`, so a page that loaded it
+by script tag found nothing registered and reported a model it could not reach. Every
+`.js` is regenerated from its `.txt`, and the key inside each now matches its
+filename. The Khan page also waits two minutes rather than forty seconds for a script
+to arrive, because 12.9 MB on a school connection is slower than that, and a timeout
+looked exactly like a missing file.
+
 ## 1.7.0 — Ten million weights, and it remembers what you told it
 
 The model is four times the size of the largest in 1.6.0, holds twice as much
