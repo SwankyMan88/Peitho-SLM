@@ -4,6 +4,8 @@ import math
 import os
 import random
 import re
+import signal
+import time
 
 import numpy as np
 import torch
@@ -23,6 +25,14 @@ PRESETS = {
     "small":  dict(n_layer=3, n_head=4, n_embd=96,  block_size=96),
     "medium": dict(n_layer=4, n_head=4, n_embd=128, block_size=128),
     "large":  dict(n_layer=6, n_head=6, n_embd=192, block_size=192),
+    # Deeper rather than wider: heads stay 32 wide, like every other preset.
+    "xl":     dict(n_layer=9, n_head=6, n_embd=192, block_size=192),
+    # About 10M parameters and twice the context, so a conversation - or a passage
+    # and the questions about it - stays in view for twice as long.
+    "xxl":    dict(n_layer=8, n_head=10, n_embd=320, block_size=768),
+    # ~20M parameters: deeper and wider again, heads still 32 wide. A day of training
+    # on a 3060, and a 27 MB export - too big for the page to feel instant.
+    "xxxl":   dict(n_layer=11, n_head=12, n_embd=384, block_size=768),
 }
 
 
@@ -163,6 +173,14 @@ def main():
     parser.add_argument("--models_dir", default=versions.MODELS_DIR)
     parser.add_argument("--fresh", action="store_true",
                         help="Ignore any existing checkpoint and train from scratch.")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Seed the weights and the batches, so the same command gives "
+                             "the same run. Unseeded by default.")
+    parser.add_argument("--resume", action="store_true",
+                        help="Continue a paused or interrupted run exactly where it stopped: "
+                             "same step, schedule, optimizer state and batches. Reads "
+                             "<checkpoint>.resume, which is written at every eval. Pause a "
+                             "run with Ctrl+C, or by creating <checkpoint>.pause beside it.")
     parser.add_argument("--log", default="",
                         help="Also write progress to this file, flushed every line, so "
                              "a run can be watched from another window. Shell "
@@ -190,6 +208,8 @@ def main():
     if device == "cuda" and not torch.cuda.is_available():
         raise SystemExit("No CUDA device available. Use --device cpu.")
     say(f"Using device: {device}")
+    if args.seed is not None:
+        torch.manual_seed(args.seed)      # every device's generator, before the weights exist
     if device == "cuda":
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
@@ -200,9 +220,27 @@ def main():
 
     os.makedirs(args.out_dir, exist_ok=True)
     checkpoint_path = os.path.join(args.out_dir, args.checkpoint)
+    resume_path = checkpoint_path + ".resume"
+    pause_path = checkpoint_path + ".pause"
     resumed = False
+    state = None
 
-    if os.path.exists(checkpoint_path) and not args.fresh:
+    # What a resumed run must keep identical, or it is no longer the same run.
+    SCHEDULE = ("steps", "batch_size", "lr", "min_lr", "warmup", "weight_decay", "grad_clip",
+                "select_by", "patience", "eval_interval", "dropout")
+
+    if args.resume:
+        if not os.path.exists(resume_path):
+            raise SystemExit(f"Nothing to resume: {resume_path} does not exist.")
+        state = torch.load(resume_path, map_location=device, weights_only=False)
+        for key, value in state["schedule"].items():
+            setattr(args, key, value)
+        config, stoi, itos = state["config"], state["stoi"], state["itos"]
+        model = GPT(config).to(device)
+        model.load_state_dict(state["model"])
+        resumed = True
+        say(f"Resuming from step {state['step']} of {args.steps} ({resume_path})")
+    elif os.path.exists(checkpoint_path) and not args.fresh:
         say(f"Found existing checkpoint at {checkpoint_path}, resuming training...")
         ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
         config = ckpt["config"]
@@ -270,6 +308,17 @@ def main():
     best_score = None
     stale_evals = 0
     saved_any = False
+    start_step = 1
+    if state is not None:
+        optimizer.load_state_dict(state["optimizer"])
+        best_val, best_score = state["best_val"], state["best_score"]
+        stale_evals, saved_any = state["stale_evals"], state["saved_any"]
+        start_step = state["step"] + 1
+        # map_location moved these onto the GPU with everything else, but both
+        # setters take a CPU ByteTensor - a CUDA resume failed here, a CPU one never did.
+        torch.set_rng_state(state["cpu_rng"].cpu())
+        if device == "cuda" and state.get("cuda_rng") is not None:
+            torch.cuda.set_rng_state(state["cuda_rng"].cpu())
 
     def save_checkpoint():
         torch.save({
@@ -279,7 +328,34 @@ def main():
             "itos": itos,
         }, checkpoint_path)
 
-    for step in range(1, args.steps + 1):
+    def save_resume(step_done):
+        """Everything needed to carry on from step_done as if never stopped. Written
+        to a temporary name and then renamed, so a crash mid-write - a GPU driver
+        reset, say - leaves the previous resume point intact rather than half a file."""
+        temp = resume_path + ".tmp"
+        torch.save({
+            "step": step_done, "model": model.state_dict(), "optimizer": optimizer.state_dict(),
+            "config": config, "stoi": stoi, "itos": itos,
+            "best_val": best_val, "best_score": best_score,
+            "stale_evals": stale_evals, "saved_any": saved_any,
+            "schedule": {key: getattr(args, key) for key in SCHEDULE},
+            "cpu_rng": torch.get_rng_state(),
+            "cuda_rng": torch.cuda.get_rng_state() if device == "cuda" else None,
+        }, temp)
+        os.replace(temp, resume_path)
+
+    # Ctrl+C asks for a pause rather than killing the run: it finishes the step in
+    # hand, saves, and exits. A background run has no Ctrl+C, so a file does the same.
+    pause_requested = []
+    signal.signal(signal.SIGINT, lambda *_: pause_requested.append(True))
+
+    def eta(step):
+        per_step = (time.perf_counter() - clock_start) / max(1, step - start_step + 1)
+        left = int(per_step * (args.steps - step))
+        return f"{left // 3600}h{left % 3600 // 60:02d}m" if left >= 3600 else f"{left // 60}m{left % 60:02d}s"
+
+    clock_start = time.perf_counter()
+    for step in range(start_step, args.steps + 1):
         lr = lr_at(step, args.steps, args.lr, args.min_lr, args.warmup)
         for group in optimizer.param_groups:
             group["lr"] = lr
@@ -310,12 +386,24 @@ def main():
 
             flag = " *best*" if improved else f"  (no gain x{stale_evals})"
             say(f"step {step}/{args.steps}: train {losses['train']:.4f} | val {losses['val']:.4f} "
-                  f"| gap {gap:+.4f} | lr {lr:.2e}{flag}")
+                  f"| gap {gap:+.4f} | lr {lr:.2e} | eta {eta(step)}{flag}")
+            save_resume(step)
 
             if args.patience and stale_evals >= args.patience:
                 say(f"Early stop: validation loss has not improved in {args.patience} "
                       "evals. The best weights are already saved.")
                 break
+
+        # Last in the step, after any eval: an eval draws batches from the same
+        # generator, so pausing before one would change every batch after it.
+        if step < args.steps and (pause_requested
+                                  or (step % 50 == 0 and os.path.exists(pause_path))):
+            save_resume(step)
+            if os.path.exists(pause_path):
+                os.remove(pause_path)
+            say(f"Paused at step {step}/{args.steps}. Continue with the same command "
+                f"plus --resume.")
+            return
 
     if not saved_any:
         save_checkpoint()
@@ -340,6 +428,9 @@ def main():
     say(f"Full checkpoint: {full_size:,} bytes | Compressed export: {compressed_size:,} bytes "
           f"({100 * compressed_size / full_size:.1f}% of full, "
           f"{8 * compressed_size / n_params:.2f} bits/param on disk)")
+    # Finished and exported, so there is nothing left to resume.
+    if os.path.exists(resume_path):
+        os.remove(resume_path)
 
 
 if __name__ == "__main__":

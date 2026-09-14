@@ -633,8 +633,8 @@ def report(result):
 def export_now(teacher, args, target=""):
     """Write the export where train.py would write it, and say the same things.
 
-    Named and versioned like every other export - models/taught_1.0.txt, then
-    taught_1.1.txt - so peitho.html finds it by the same probe it uses for the
+    Named and versioned like every other export - models/taught_2m8_1.0.txt, then
+    taught_2m8_1.1.txt - so peitho.html finds it by the same probe it uses for the
     released models, benchmark.py and standalone.py accept it by base name, and
     nothing about a taught model is a special case."""
     path = target or versions.next_path(args.name, args.models_dir)
@@ -706,7 +706,7 @@ def main():
                    help="Checkpoint to write after every lesson.")
     p.add_argument("--name", default="taught",
                    help="Base name for /export, versioned the way train.py versions "
-                        "its exports: models/taught_1.0.txt, then taught_1.1.txt.")
+                        "its exports: models/taught_2m8_1.0.txt, then taught_2m8_1.1.txt.")
     p.add_argument("--models_dir", default=versions.MODELS_DIR)
     p.add_argument("--bits", type=int, choices=(4, 8), default=8,
                    help="Export width. 8 is effectively lossless; 4 halves the file "

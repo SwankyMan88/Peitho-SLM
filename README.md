@@ -23,7 +23,7 @@ thousandth the size of the models people usually mean. They hold a short
 conversation, compose sentences they have never seen, and work arithmetic out step by
 step. They also get things wrong confidently, which is the part to watch.
 
-| | small_1.5 | medium_1.4 | large_1.3 |
+| | small_382k_1.5 | medium_855k_1.4 | large_2m8_1.3 |
 |---|---|---|---|
 | parameters | 382K | 855K | 2.7M |
 | export size | **509 KB** | 1.1 MB | 3.6 MB |

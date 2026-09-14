@@ -1,18 +1,19 @@
 """Naming and lookup for exported models in the models/ folder.
 
-Exports are named `<base>_<version>.txt`, for example `small_1.0.txt`. A new export
-takes the next version after the highest one present, so nothing is ever
-overwritten:
+Exports are named `<base>_<version>.txt`, and the base carries the size: the family,
+then how many weights it holds - `small_382k_1.5.txt`, `large_2m8_1.3.txt`,
+`xxl_10m1_1.0.txt`. A new export takes the next version after the highest one
+present, so nothing is ever overwritten:
 
-    (empty folder)                  -> small_1.0
-    small_1.0                       -> small_1.1
-    small_1.0, small_1.1            -> small_1.2
+    (empty folder)                            -> small_382k_1.0
+    small_382k_1.0                            -> small_382k_1.1
+    small_382k_1.0, small_382k_1.1            -> small_382k_1.2
 
 If that name is already taken - usually because a file was renamed or copied in by
 hand - the new export nests underneath rather than clobbering it:
 
-    small_1.0, small_1.1, small_1.2 -> small_1.3
-    ...and if small_1.3 also exists -> small_1.3.1, then small_1.3.2
+    small_382k_1.0 .. small_382k_1.2          -> small_382k_1.3
+    ...and if small_382k_1.3 also exists      -> small_382k_1.3.1, then .3.2
 """
 
 import os
@@ -25,7 +26,7 @@ NAME = re.compile(r"^(?P<base>.+)_(?P<version>\d+(?:\.\d+)*)\.txt$")
 
 
 def parse(filename):
-    """('small_1.2.txt') -> ('small', (1, 2)), or None if it is not an export name."""
+    """('small_382k_1.2.txt') -> ('small_382k', (1, 2)), or None if it is not one."""
     match = NAME.match(os.path.basename(filename))
     if not match:
         return None
@@ -75,10 +76,10 @@ def resolve(reference, folder=MODELS_DIR):
 
     Accepts any of the ways someone might reasonably name one:
 
-        models/small_1.2.txt   a path
-        small_1.2.txt          a filename in the models folder
-        small_1.2              a particular version
-        small                  a base name, meaning its highest version
+        models/small_382k_1.5.txt   a path
+        small_382k_1.5.txt          a filename in the models folder
+        small_382k_1.5              a particular version
+        small_382k                  a base name, meaning its highest version
         "" or None             the most recently written export of any base
     """
     if reference and os.path.isfile(reference):

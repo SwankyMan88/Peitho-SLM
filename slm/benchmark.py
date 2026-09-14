@@ -207,10 +207,10 @@ def bar(fraction, width=20):
 def main():
     p = argparse.ArgumentParser(
         description="Benchmark the trained SLM.",
-        epilog="Examples:  py benchmark.py small_1.2   |   py benchmark.py small   |   "
-               "py benchmark.py models/large_1.0.txt   |   py benchmark.py (the checkpoint)")
+        epilog="Examples:  py benchmark.py small_382k_1.5   |   py benchmark.py small_382k   "
+               "|   py benchmark.py models/large_2m8_1.3.txt   |   py benchmark.py (the checkpoint)")
     p.add_argument("model", nargs="?", default="",
-                   help="An export to benchmark: a name such as \"small_1.2\", a base name "
+                   help="An export to benchmark: a name such as \"small_382k_1.5\", a base name "
                         "such as \"small\" for its highest version, or a path. Omitted, the "
                         "full-precision checkpoint is used instead.")
     p.add_argument("--checkpoint", default=paths.CHECKPOINT)

@@ -8,15 +8,17 @@ trained on, and where it falls over.
 
 | | for | size | when not to |
 |---|---|---|---|
-| `small_1.5` | pasting the weights somewhere by hand | **509 KB** | when you can spare a bigger download |
-| `medium_1.4` | a reasonable default | 1.1 MB | when 509 KB is the budget |
-| `large_1.3` | the best writing and arithmetic | 3.6 MB | on a slow connection, or in a text box |
-| `medium_think_1.3` | kept from 1.5.0; every model thinks now, so this is no longer a separate kind | 1.1 MB | anything - prefer `medium_1.4` |
-| `greeter_1.1` | one job: opening a conversation | **65 KB** | anything else - it cannot answer |
+| `small_382k_1.5` | pasting the weights somewhere by hand | **509 KB** | when you can spare a bigger download |
+| `medium_855k_1.4` | a reasonable default | 1.1 MB | when 509 KB is the budget |
+| `large_2m8_1.3` | the best writing and arithmetic of the 1.6.0 set | 3.6 MB | on a slow connection, or in a text box |
+| `xl_4m1_1.0` | 4.1M weights; better at reading a passage | 5.2 MB | when the download has to stay small |
+| `xxl_10m1_1.0` | 10.1M weights, 768 characters of context, and the only one that recalls what you told it | 12.9 MB | anything that must load quickly |
+| `medium_think_855k_1.3` | kept from 1.5.0; every model thinks now, so this is no longer a separate kind | 1.1 MB | anything - prefer `medium_855k_1.4` |
+| `greeter_47k_1.1` | one job: opening a conversation | **65 KB** | anything else - it cannot answer |
 
 Measured on the 30M-character composing corpus, same 225 sums for each:
 
-| | small_1.5 | medium_1.4 | large_1.3 |
+| | small_382k_1.5 | medium_855k_1.4 | large_2m8_1.3 |
 |---|---|---|---|
 | held-out loss | 0.23 bits/char | 0.21 | **0.21** |
 | generalization gap | +0.0100 | +0.0114 | +0.0154 |
@@ -148,8 +150,8 @@ Each export also exists as a `.js` file with the same name. It holds the same we
 wrapped so a script tag can deliver them:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/SwankyMan88/Peitho-SLM@v1.5.0/models/greeter_1.0.js"></script>
-<script>var m = window.PEITHO_MODELS["greeter_1.0"];</script>
+<script src="https://cdn.jsdelivr.net/gh/SwankyMan88/Peitho-SLM@v1.5.0/models/greeter_47k_1.1.js"></script>
+<script>var m = window.PEITHO_MODELS["greeter_47k_1.1"];</script>
 ```
 
 That form exists because some sandboxes forbid `fetch` to another host while allowing

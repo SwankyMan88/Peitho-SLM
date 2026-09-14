@@ -12,7 +12,7 @@ khan/
 
 # What slm/learn.py exports belongs to whoever taught it: their facts, their
 # corrections, in their copy of a released model. Not ours to publish by default.
-# Force-add one (git add -f models/taught_1.0.txt) to share it deliberately.
+# Force-add one (git add -f models/taught_2m8_1.0.txt) to share it deliberately.
 models/taught_*.txt
 models/taught_*.js
 

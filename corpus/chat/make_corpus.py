@@ -16,6 +16,7 @@ instead, so the corpus is free to be conversation.
 """
 
 import argparse
+import json
 import os
 import random
 import sys
@@ -26,7 +27,9 @@ import paths
 from model import START_MARK, USER_MARK, BOT_MARK, END_MARK, THINK_MARK
 
 sys.path.insert(0, paths.CHAT)
+sys.path.insert(0, os.path.join(paths.CORPUS, "alpaca"))
 import arith
+import make_alpaca
 import compose
 import talk
 import thinking
@@ -201,21 +204,59 @@ def vary_user(rng, line):
     return USER_MARK + body + END_MARK
 
 
+def load_alpaca(path, seed, thinking_on, max_chars):
+    """Alpaca records as finished conversations, in a fixed shuffled order.
+
+    Only records whose whole conversation fits in max_chars: one that does not fit
+    the context window is only ever seen in pieces, and its ending - the end marker
+    the model has to learn to emit - is the piece most often cut off."""
+    with open(path, "r", encoding="utf-8") as f:
+        records = json.load(f)
+    arng = random.Random(seed)
+    arng.shuffle(records)
+    chunks = [make_alpaca.conversation(arng, record, thinking_on) for record in records]
+    return [c for c in chunks if c is not None and len(c) <= max_chars]
+
+
+def load_extra(path):
+    """Finished conversations from a converter, such as corpus/dialogue/make_dialogue.py:
+    a JSON list of strings, each already in the corpus format."""
+    with open(path, "r", encoding="utf-8") as f:
+        return [c for c in json.load(f) if c]
+
+
 def render(rng, blocks, target_chars, composed_share=0.0, math_share=0.0,
-           think_share=0.0, thinking_on=True):
+           think_share=0.0, thinking_on=True, alpaca=(), alpaca_share=0.0, stats=None,
+           extras=()):
     """Fill to the target size, mixing repeated hand-written blocks with freshly
     generated ones.
 
     The generated share is new every time rather than repeated, so raising it adds
     unique text instead of more repetition. That is the difference between a model
     that composes a sentence and one that recalls it, and between one that works a
-    sum out and one that has the answer to that particular sum by heart."""
+    sum out and one that has the answer to that particular sum by heart.
+
+    Alpaca conversations, when given, take alpaca_share of the characters written.
+    They are handed out in order and only repeat once every one has been used."""
     parts = []
     total = 0
+    # Alpaca and every extra source: [chunks, share, chars written, chunks used].
+    sources = [[list(alpaca), alpaca_share, 0, 0]] + [[list(c), s, 0, 0] for c, s in extras]
+    sources = [s for s in sources if s[0] and s[1] > 0]
     while total < target_chars:
         order = list(blocks)
         rng.shuffle(order)
         for block in order:
+            for source in sources:
+                chunks, share = source[0], source[1]
+                while source[2] < share * total and total < target_chars:
+                    chunk = chunks[source[3] % len(chunks)]
+                    parts.append(chunk)
+                    total += len(chunk) + 1
+                    source[2] += len(chunk) + 1
+                    source[3] += 1
+            if total >= target_chars:
+                break
             measured = 0
             if composed_share and rng.random() < composed_share:
                 # The thinking share comes out of the generated stream, so raising
@@ -240,6 +281,9 @@ def render(rng, blocks, target_chars, composed_share=0.0, math_share=0.0,
             total += max(len(chunk), measured) + 1
             if total >= target_chars:
                 break
+    if stats is not None:
+        # Sources are listed in the order given, Alpaca first when present.
+        stats["sources"] = [(len(s[0]), s[2], s[3]) for s in sources]
     return "\n".join(parts) + "\n"
 
 
@@ -269,6 +313,18 @@ def main():
     p.add_argument("--math", type=float, default=0.28,
                    help="Share of the generated stream that is worked arithmetic. "
                         "Generated fresh, so every sum is a different one.")
+    p.add_argument("--alpaca", default="",
+                   help="Also mix in conversations from this alpaca_data.json. Off by default.")
+    p.add_argument("--alpaca_share", type=float, default=0.2,
+                   help="Share of the corpus, by characters, that is Alpaca.")
+    p.add_argument("--alpaca_max_chars", type=int, default=380,
+                   help="Skip Alpaca conversations longer than this. Keep it under "
+                        "--block_size so each one fits in context whole.")
+    p.add_argument("--dialogue", default="",
+                   help="Also mix in finished conversations from this JSON list, as written "
+                        "by corpus/dialogue/make_dialogue.py. Off by default.")
+    p.add_argument("--dialogue_share", type=float, default=0.3,
+                   help="Share of the corpus, by characters, that is --dialogue.")
     p.add_argument("--seed", type=int, default=1234)
     args = p.parse_args()
 
@@ -284,11 +340,29 @@ def main():
 
     unique = sum(len("\n".join(b)) for b in train_blocks)
     thinking_on = not args.no_thinking
+
+    # Held-out Alpaca records are split off before either file is written, so the
+    # validation loss on them measures writing, not recall.
+    alpaca = load_alpaca(args.alpaca, args.seed + 2, thinking_on,
+                         args.alpaca_max_chars) if args.alpaca else []
+    n_alpaca_held = int(len(alpaca) * args.heldout_frac)
+    alpaca_held, alpaca_train = alpaca[:n_alpaca_held], alpaca[n_alpaca_held:]
+    share = args.alpaca_share if alpaca else 0.0
+
+    # Dialogues too: held-out ones never appear in training.
+    dialogue = load_extra(args.dialogue) if args.dialogue else []
+    n_dialogue_held = int(len(dialogue) * args.heldout_frac)
+    dialogue_held, dialogue_train = dialogue[:n_dialogue_held], dialogue[n_dialogue_held:]
+    dshare = args.dialogue_share if dialogue else 0.0
+
+    train_stats = {}
     train = render(rng, train_blocks, args.target_chars, args.composed, args.math,
-                   args.think, thinking_on)
+                   args.think, thinking_on, alpaca_train, share, train_stats,
+                   extras=[(dialogue_train, dshare)])
     heldout = render(random.Random(args.seed + 1), held,
                      max(50_000, int(args.target_chars * 0.06)), args.composed, args.math,
-                     args.think, thinking_on)
+                     args.think, thinking_on, alpaca_held, share,
+                     extras=[(dialogue_held, dshare)])
 
     for path, text, label in ((args.train_out, train, "train"),
                               (args.heldout_out, heldout, "heldout")):
@@ -298,17 +372,28 @@ def main():
               f"{text.count(START_MARK):,} conversations, {len(set(text))} distinct characters")
 
     print(f"\n{len(conversations)} hand-written conversations, {len(pairs)} pairs")
-    repeated_chars = int(args.target_chars * (1 - args.composed))
+    # Alpaca and dialogue take their shares first; the hand-written and generated
+    # text split what is left.
+    own = 1 - share - dshare
+    repeated_chars = int(args.target_chars * own * (1 - args.composed))
     passes = repeated_chars // max(1, unique)
     print(f"hand-written text: {unique:,} unique chars filling {repeated_chars:,} "
           f"chars of corpus, so ~{passes} passes over it")
-    print(f"generated text: {args.composed:.0%} of the corpus, effectively all unique, "
+    print(f"generated text: {own * args.composed:.0%} of the corpus, effectively all unique, "
           f"of which {args.math:.0%} is worked arithmetic and {args.think:.0%} "
           f"{'thinks before answering' if thinking_on else 'would think, stripped away'}")
     if passes > 60:
         print("  WARNING: the hand-written part is repeating heavily. Add conversations, "
               "or raise --composed so more of the corpus is fresh.")
     print(f"{len(held)} blocks held out of training entirely, for honest validation.")
+    named = [("alpaca", alpaca_held, "--alpaca_share")] if share else []
+    named += [("dialogue", dialogue_held, "--dialogue_share")] if dshare else []
+    for (name, held_part, flag), (available, chars, used) in zip(named, train_stats["sources"]):
+        print(f"{name}: {available + len(held_part):,} conversations, {len(held_part):,} held "
+              f"out; {used:,} written to training ({chars:,} chars, "
+              f"{used / max(1, available):.2f} passes over them)")
+        if used > available:
+            print(f"  WARNING: {name} is repeating. Lower {flag}.")
 
     following = {}
     lines = train.splitlines()

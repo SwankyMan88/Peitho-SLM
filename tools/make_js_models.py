@@ -6,8 +6,8 @@ export that is also a .js file can be loaded where the .txt cannot be read.
 
 The .js form registers itself on a global and calls a hook if one is waiting:
 
-    (window.PEITHO_MODELS = window.PEITHO_MODELS || {})["small_1.2"] = {...};
-    if (window.PEITHO_ARRIVED) { window.PEITHO_ARRIVED("small_1.2"); }
+    (window.PEITHO_MODELS = window.PEITHO_MODELS || {})["small_382k_1.5"] = {...};
+    if (window.PEITHO_ARRIVED) { window.PEITHO_ARRIVED("small_382k_1.5"); }
 
     py make_js_models.py
 """

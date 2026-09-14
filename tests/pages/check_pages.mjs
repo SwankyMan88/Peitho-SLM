@@ -53,7 +53,10 @@ for (const path of PAGES) {
         classList: { add: noop, remove: noop, toggle: noop, contains: () => false },
         style: {}, textContent: "", innerHTML: "", hidden: true, disabled: false,
         append: noop, remove: noop, addEventListener: noop, querySelectorAll: () => [],
-        getBoundingClientRect: () => ({ top: 0, height: 0 }), children: [],
+        setAttribute: noop, removeAttribute: noop, getAttribute: () => null,
+        insertBefore: noop, setPointerCapture: noop, hasPointerCapture: () => false,
+        focus: noop, contains: () => false, click: noop,
+        getBoundingClientRect: () => ({ top: 0, height: 0, left: 0, width: 0 }), children: [],
         value: "0.7", scrollHeight: 0, clientHeight: 0, scrollTop: 0, offsetHeight: 0
     };
     globalThis.document = {
@@ -72,7 +75,16 @@ for (const path of PAGES) {
     globalThis.fetch = undefined;
     globalThis.requestAnimationFrame = noop;
 
+    // The page catches whatever start() throws and reports it through console.error,
+    // so a page that dies on load looks like a page that works unless this is watched.
+    let loadError = null;
+    const realError = console.error;
+    console.error = (...parts) => {
+        loadError = loadError || parts.map(p => (p && p.message) || String(p)).join(" ");
+    };
     const { paint } = new Function(script + "\n;return { paint };")();
+    console.error = realError;
+    check(`${path}: the page starts without throwing`, !loadError, loadError || "");
 
     // A reply with no marker: the branch that recursed.
     let bubble = stubBubble();
@@ -124,6 +136,18 @@ for (const path of PAGES) {
           !!bubble.thought && bubble.thought.lastChild.textContent === "Tens: 40 + 30 = 70.",
           bubble.thought ? JSON.stringify(bubble.thought.lastChild.textContent) : "");
     stub.checked = false;
+
+    // A reply that thought nothing - "◀◇reply" - is not tagged: the marker alone is
+    // not working. Models trained on data with nothing to work out write this.
+    bubble = stubBubble();
+    paint(bubble, `${THINK}Paris is the capital of France.`);
+    const emptyTagged = bubble.who.children.some(k => k.className === "thought-tag"
+                                                      && !k.hidden);
+    check(`${path}: an empty thought is not tagged`, !emptyTagged,
+          JSON.stringify(bubble.who.children.map(k => [k.textContent, k.hidden])));
+    check(`${path}: an empty thought still lands in the body`,
+          bubble.body.textContent === "Paris is the capital of France.",
+          JSON.stringify(bubble.body.textContent));
 
     // A `hidden` element still shows if an author rule sets display: setting
     // .hidden = true did nothing on .thought, so a hidden working stayed on screen

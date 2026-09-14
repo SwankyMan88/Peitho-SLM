@@ -149,6 +149,8 @@
             .empty.fading {
                 opacity: 0;
             }
+            /* What you said is a bubble; what it said is just the page talking back,
+               so its turns carry no box, no border and no name - only the text. */
             .turn {
                 max-width: 78%;
                 padding: 10px 14px;
@@ -161,18 +163,16 @@
                 border-bottom-right-radius: 5px;
             }
             .turn.theirs {
-                align-self: flex-start;
-                background: var(--panel);
-                border: 1px solid var(--edge);
-                border-bottom-left-radius: 5px;
+                align-self: stretch;
+                max-width: 100%;
+                padding: 2px 2px 10px;
+                background: none;
+                border: none;
+                border-radius: 0;
+                box-shadow: none;
             }
             .who {
-                display: block;
-                font-size: 0.66rem;
-                letter-spacing: 0.14em;
-                text-transform: uppercase;
-                color: var(--dim);
-                margin-bottom: 3px;
+                display: none;
             }
             .body {
                 white-space: pre-wrap;
@@ -191,11 +191,84 @@
                 white-space: pre-wrap;
                 word-break: break-word;
                 color: var(--dim);
-                font-size: 0.86rem;
-                font-style: italic;
+                font-size: 0.93rem;
+                line-height: 1.7;
                 border-left: 2px solid var(--edge);
-                padding-left: 9px;
-                margin-bottom: 7px;
+                padding-left: 14px;
+                margin: 2px 0 10px;
+            }
+            /* Shown while it is drafting replies it may throw away. The mark is an
+               inline SVG rather than an image or a GIF: no second file to host, it
+               takes its colour from the page, and it survives being pasted into a
+               sandbox that allows no assets - the Khan page among them. */
+            .working {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                color: var(--dim);
+            }
+            .spark {
+                width: 22px;
+                height: 22px;
+                flex: none;
+            }
+            .spark .ring,
+            .spark .core {
+                transform-box: fill-box;
+                transform-origin: 50% 50%;
+            }
+            .spark .ring {
+                fill: none;
+                stroke: var(--accent);
+                stroke-width: 2;
+                stroke-linecap: round;
+                stroke-dasharray: 30 24;
+                opacity: 0.8;
+                animation: spin 1.5s linear infinite;
+            }
+            .spark .core {
+                fill: var(--accent);
+                animation: beat 1.5s ease-in-out infinite;
+            }
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+            @keyframes beat {
+                0%, 100% {
+                    transform: scale(0.7);
+                    opacity: 0.5;
+                }
+                50% {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+            }
+            .working .count {
+                font-variant-numeric: tabular-nums;
+                opacity: 0.75;
+            }
+            /* The finished reply arrives rather than blinking into place. */
+            .arrive {
+                animation: arrive 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+            }
+            @keyframes arrive {
+                from {
+                    opacity: 0;
+                    transform: scale(0.97) translateY(5px);
+                }
+                to {
+                    opacity: 1;
+                    transform: none;
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .spark .ring,
+                .spark .core,
+                .arrive {
+                    animation: none;
+                }
             }
             .thought .label {
                 display: block;
@@ -390,6 +463,148 @@
                 font-size: 0.68rem;
                 opacity: 0.7;
             }
+            .linkish {
+                width: 100%;
+                margin-bottom: 12px;
+                padding: 7px 10px;
+                font-size: 0.75rem;
+                background: transparent;
+                color: var(--dim);
+                border: 1px dashed var(--edge);
+                border-radius: 9px;
+            }
+            /* The smaller models, in a popup over the settings panel. */
+            .more {
+                position: absolute;
+                inset: 0;
+                overflow-y: auto;
+                background: var(--panel);
+                border-radius: 14px;
+                padding: 14px 16px;
+                z-index: 6;
+            }
+            .more[hidden] {
+                display: none;
+            }
+            .more .head {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+            }
+            .more .head h2 {
+                margin: 0;
+            }
+            .more .head button {
+                width: auto;
+                margin: 0;
+            }
+            /* Effort: how many times the model draws each letter before writing it.
+               Its own popup, and a slider drawn by hand - a native range input cannot
+               show five named stops without looking like a form control. */
+            .effort {
+                position: absolute;
+                right: 0;
+                bottom: calc(100% + 10px);
+                width: min(320px, calc(100vw - 56px));
+                background: var(--panel);
+                border: 1px solid var(--edge);
+                border-radius: 14px;
+                padding: 14px 16px 10px;
+                box-shadow: 0 8px 26px var(--shadow);
+                z-index: 5;
+            }
+            .effort[hidden] {
+                display: none;
+            }
+            .effort h2 {
+                font-size: 0.7rem;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: var(--dim);
+                font-weight: 400;
+                margin: 0 0 14px;
+            }
+            .slider {
+                position: relative;
+                height: 40px;
+                margin: 0 10px;
+                cursor: pointer;
+                touch-action: none;
+            }
+            .slider:focus-visible {
+                outline: 2px solid var(--accent);
+                outline-offset: 6px;
+                border-radius: 4px;
+            }
+            .track {
+                position: absolute;
+                top: 9px;
+                left: 0;
+                right: 0;
+                height: 4px;
+                border-radius: 999px;
+                background: var(--edge);
+            }
+            .fill {
+                position: absolute;
+                top: 0;
+                left: 0;
+                height: 100%;
+                border-radius: 999px;
+                background: var(--accent);
+                transition: width 140ms ease;
+            }
+            /* Stops are appended after the thumb, so the thumb is lifted over them
+               here rather than by juggling the order they are created in. */
+            .stop {
+                position: absolute;
+                z-index: 1;
+                top: 6px;
+                width: 10px;
+                height: 10px;
+                margin-left: -5px;
+                border-radius: 50%;
+                background: var(--edge);
+                transition: background-color 140ms ease;
+            }
+            .stop.done {
+                background: var(--accent);
+            }
+            /* A knob rather than a dot: the accent ringed against the panel, so it
+               reads as the thing you take hold of. */
+            .slider .thumb {
+                position: absolute;
+                z-index: 2;
+                top: 1px;
+                width: 18px;
+                height: 18px;
+                margin-left: -9px;
+                border-radius: 50%;
+                background: var(--accent);
+                border: 3px solid var(--panel);
+                box-shadow: 0 1px 5px var(--shadow);
+                transition: left 140ms ease;
+            }
+            .ticks {
+                position: absolute;
+                top: 27px;
+                left: 0;
+                right: 0;
+                height: 14px;
+            }
+            .tick {
+                position: absolute;
+                transform: translateX(-50%);
+                font-size: 0.62rem;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--dim);
+                white-space: nowrap;
+            }
+            .tick.on {
+                color: var(--ink);
+            }
             .note {
                 color: var(--dim);
                 font-size: 0.73rem;
@@ -440,19 +655,29 @@
                 <div class="settings" id="settings" hidden>
                     <h2>Model</h2>
                     <div class="picker" id="picker"></div>
+                    <button class="linkish" id="more-open" hidden>Smaller models&hellip;</button>
                     <div class="note" id="note"></div>
+                    <div class="more" id="more" hidden>
+                        <div class="head">
+                            <h2>Smaller models</h2>
+                            <button class="linkish" id="more-close">Back</button>
+                        </div>
+                        <div class="picker" id="picker-more"></div>
+                        <div class="note">Quicker to load and to run, and less capable. Small
+                            is what opens if none of the main models can be reached.</div>
+                    </div>
                     <div class="tune">
                         <label class="switch">Show the working
-                            <input type="checkbox" id="working">
+                            <input type="checkbox" id="working" checked>
                         </label>
                     </div>
-                    <h2>Sampling</h2>
+                    <h2>Writing</h2>
                     <div class="tune">
-                        <label>Temperature
+                        <label>Variety
                             <input type="range" id="temp" min="0.1" max="1.5" step="0.05" value="0.7">
                             <output id="tempv">0.70</output>
                         </label>
-                        <label>Top-k
+                        <label>Words considered
                             <input type="range" id="topk" min="1" max="60" step="1" value="40">
                             <output id="topkv">40</output>
                         </label>
@@ -464,8 +689,18 @@
                     <input type="text" id="msg" placeholder="Say something…" autocomplete="off">
                     <button id="send">Send</button>
                 </div>
+                <div class="effort" id="effort" hidden>
+                    <h2>Effort</h2>
+                    <div class="slider" id="slider" role="slider" tabindex="0"
+                         aria-label="Effort" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1">
+                        <div class="track"><div class="fill" id="fill"></div></div>
+                        <div class="thumb" id="knob"></div>
+                        <div class="ticks" id="ticks"></div>
+                    </div>
+                </div>
                 <div class="tools">
                     <button id="gear" class="icon" title="Settings" aria-label="Settings">&#9881;</button>
+                    <button id="dial" class="icon" title="Effort" aria-label="Effort">&#9878;</button>
                     <button id="clear">Clear</button>
                 </div>
             </div>
@@ -753,6 +988,26 @@ class Peitho {
         return logits;
     }
 
+    /* One draw from the distribution the temperature and top_k leave behind. */
+    draw(a, n) {
+        const r = Math.random();
+        let acc = 0;
+        for (let i = 0; i < n; i++) {
+            acc += a[i];
+            if (r <= acc) {
+                return i;
+            }
+        }
+        return n - 1;
+    }
+
+    /* One letter, drawn from what temperature and top_k leave standing.
+
+       An earlier effort dial drew each letter several times and kept the best draw.
+       It worked, but it cost nothing measurable - 0.0146 ms against 0.0148 ms per
+       letter, next to 8.97 ms for the forward pass - so "more effort" bought no more
+       thinking. Effort now drafts whole replies instead, which does cost what it
+       claims to. */
     sample(logits, temp, topK) {
         const n = logits.length;
         const a = new Float32Array(n);
@@ -769,16 +1024,89 @@ class Peitho {
             }
         }
         softmax(a, n);
-        const r = Math.random();
-        let acc = 0;
-        for (let i = 0; i < n; i++) {
-            acc += a[i];
-            if (r <= acc) {
-                return i;
-            }
-        }
-        return n - 1;
+        const id = this.draw(a, n);
+        // What the model gave the letter it just chose. Kept so a finished draft can
+        // be scored by how likely the model thought its own words were.
+        this.lastProb = a[id];
+        return id;
     }
+}
+
+/* The effort dial: how many whole replies are written before one is shown. Each
+   draft is a full pass over the model, so Max really does take eight times as long
+   as Low - the cost is the point. */
+const EFFORT = [
+    { name: "Low", drafts: 1 },
+    { name: "Medium", drafts: 2 },
+    { name: "High", drafts: 3 },
+    { name: "Ultra", drafts: 5 },
+    { name: "Max", drafts: 8 }
+];
+let effort = 0;
+
+/* The slider is five stops rather than a continuous track: every position has a
+   name, and a name is what the setting means. */
+function setEffort(index) {
+    effort = Math.min(EFFORT.length - 1, Math.max(0, index));
+    const pct = (effort / (EFFORT.length - 1)) * 100;
+    el("fill").style.width = pct + "%";
+    el("knob").style.left = pct + "%";
+    const slider = el("slider");
+    slider.setAttribute("aria-valuenow", String(effort + 1));
+    slider.setAttribute("aria-valuetext", EFFORT[effort].name);
+    const stops = slider.querySelectorAll(".stop");
+    for (let i = 0; i < stops.length; i++) {
+        stops[i].classList.toggle("done", i <= effort);
+    }
+    const ticks = el("ticks").children;
+    for (let i = 0; i < ticks.length; i++) {
+        ticks[i].classList.toggle("on", i === effort);
+    }
+}
+
+function buildSlider() {
+    const slider = el("slider");
+    const ticks = el("ticks");
+    EFFORT.forEach((level, i) => {
+        const pct = (i / (EFFORT.length - 1)) * 100;
+        const stop = document.createElement("div");
+        stop.className = "stop";
+        stop.style.left = pct + "%";
+        slider.append(stop);
+        const tick = document.createElement("div");
+        tick.className = "tick";
+        tick.style.left = pct + "%";
+        tick.textContent = level.name;
+        ticks.append(tick);
+    });
+
+    // Snap to the nearest stop, wherever the pointer lands or is dragged to.
+    const pick = e => {
+        const box = slider.getBoundingClientRect();
+        const at = box.width ? (e.clientX - box.left) / box.width : 0;
+        setEffort(Math.round(at * (EFFORT.length - 1)));
+    };
+    slider.addEventListener("pointerdown", e => {
+        slider.setPointerCapture(e.pointerId);
+        pick(e);
+        e.preventDefault();
+    });
+    slider.addEventListener("pointermove", e => {
+        if (slider.hasPointerCapture(e.pointerId)) {
+            pick(e);
+        }
+    });
+    slider.addEventListener("keydown", e => {
+        const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[e.key];
+        if (step) {
+            setEffort(effort + step);
+            e.preventDefault();
+        } else if (e.key === "Home" || e.key === "End") {
+            setEffort(e.key === "Home" ? 0 : EFFORT.length - 1);
+            e.preventDefault();
+        }
+    });
+    setEffort(effort);
 }
 
 /* Every model is read from the models/ folder beside this page, so the page
@@ -794,12 +1122,20 @@ const FOLDER = "models/";
    open with something composed rather than a fixed string. It is excluded from the
    picker: it cannot answer anything, and offering it as a chat model would be a
    trap. */
-const GREETER = "greeter";
+const GREETER = "greeter_47k";
 const GREET_EVERY = 30000;
 /* "taught" is what slm/learn.py exports under: a released model plus whatever
    someone taught it live. Same format, same probe, no special case. */
-const BASES = ["tiny", "small", "medium", "medium_think", "large", "greeter", "taught"];
-const START_WITH = "small";   /* whichever base name to open with, if it is there */
+/* Exports are named for what they are: the family, then how many weights they hold.
+   "small_382k_1.5.txt" is version 1.5 of the 382,000-weight model. */
+const BASES = ["small_382k", "medium_855k", "medium_think_855k", "large_2m8", "xl_4m1",
+               "xxl_10m1", "xxxl_20m", "greeter_47k", "taught_2m8"];
+/* Strongest first. The main list offers the newest version of each of these, and
+   the page opens the first one it can load. Everything else - the smaller models,
+   and older versions of these - sits behind "Smaller models". */
+const STRONG = ["xxxl_20m", "xxl_10m1", "xl_4m1", "large_2m8", "taught_2m8"];
+/* Opened only if nothing in the main list can be reached. */
+const FALLBACK = "small_382k";
 const MAJORS = 2;             /* how many major versions of each base to look for */
 const MINORS = 10;            /* and how many minor versions of each of those */
 const downloaded = {};
@@ -824,15 +1160,23 @@ function el(id) {
 function buildPrompt(text, block) {
     const current = USER + text + END + "\n" + BOT;
     const kept = [];
+    // Leave room for the reply. A prompt that fills the whole context pushes every
+    // character of the reply past the last position the model was trained on, and it
+    // degrades into nonsense a few words in - seen on the third turn of a chat with
+    // xl_1.0. The mean reply and its working together run to about 135 characters.
+    const room = Math.min(240, Math.floor(block * 0.4));
+    const budget = block - room;
     // Four turns, because the hand-written conversations are mostly two to four
     // turns long. Feeding a longer history than anything in training pushes the
-    // context off-distribution and the reply degrades partway through.
-    const WINDOW = 4;
+    // context off-distribution and the reply degrades partway through. A model with
+    // a 768-character context trained on long dialogues and passage Q&A can hold far
+    // more, so it keeps up to ten - that is where its longer memory shows.
+    const WINDOW = block >= 768 ? 10 : 4;
     let dropped = chatTurns.length > WINDOW;
     for (let i = chatTurns.length - 1; i >= 0 && chatTurns.length - i <= WINDOW; i--) {
         const t = chatTurns[i];
         const line = (t.role === "user" ? USER : BOT) + t.text + END;
-        if ([line, ...kept, current].join("\n").length > block) {
+        if ([line, ...kept, current].join("\n").length > budget) {
             dropped = true;   // drop whole turns; a prompt starting mid-word is off-distribution
             break;
         }
@@ -858,7 +1202,8 @@ function paint(bubble, text) {
     const working = worked ? text.slice(0, at) : (stillWorking ? text : "");
     const said = worked ? text.slice(at + THINK.length) : (stillWorking ? "" : text);
 
-    tag(bubble, worked || stillWorking);
+    // "◀◇reply" thought nothing: the marker alone is not working worth a tag.
+    tag(bubble, (worked && working.trim() !== "") || stillWorking);
     reveal(bubble, working);
     bubble.body.textContent = stillWorking && !showWorking() ? "\u2026" : said;
 }
@@ -944,14 +1289,15 @@ function addTurn(mine, text) {
     return bubble;
 }
 
-function finish(text, userText, bubble, started) {
+function finish(text, userText, bubble, started, drafts) {
     const ms = performance.now() - started;
     bubble.div.classList.remove("streaming");
     if (text.trim()) {
         paint(bubble, text);
     }
     el("stats").textContent = text.length + " chars · " +
-        (text.length / (ms / 1000)).toFixed(0) + " chars/sec";
+        (text.length / (ms / 1000)).toFixed(0) + " chars/sec" +
+        (drafts > 1 ? " · best of " + drafts + " drafts" : "");
     if (!text.trim()) {
         text = "(no reply)";
         bubble.body.textContent = text;
@@ -973,6 +1319,82 @@ function looping(text) {
     return /\b(\w{1,12})\s+\1\b/.test(tail);
 }
 
+/* The mark that turns while it drafts: a ring with a gap, and the diamond from the
+   conversation markers beating in the middle. Inline SVG, drawn in the page's own
+   accent colour, so there is no file to fetch and nothing to break in a sandbox. */
+const SPARK = '<svg class="spark" viewBox="0 0 24 24" aria-hidden="true">'
+    + '<circle class="ring" cx="12" cy="12" r="9"/>'
+    + '<path class="core" d="M12 6.6 15.4 12 12 17.4 8.6 12Z"/></svg>';
+
+/* Named for what it shows, not for the setting: showWorking() already means "is the
+   Show the working switch on", and shadowing it broke every painted reply. */
+function showDrafting(bubble, made, total) {
+    if (!bubble.work) {
+        bubble.body.textContent = "";
+        bubble.work = document.createElement("span");
+        bubble.work.className = "working";
+        bubble.work.innerHTML = SPARK + "<span>Working through it</span>"
+            + '<span class="count"></span>';
+        bubble.body.append(bubble.work);
+    }
+    bubble.work.lastChild.textContent = total > 1 ? "(" + made + " of " + total + ")" : "";
+}
+
+/* Restarting the animation needs the class gone and the element measured in between,
+   or the browser sees no change and plays nothing. */
+function arrive(element) {
+    element.classList.remove("arrive");
+    void element.offsetWidth;
+    element.classList.add("arrive");
+}
+
+/* Words and pairs of words, for asking how much two drafts say the same thing. */
+function shingles(text) {
+    const words = text.toLowerCase().match(/[a-z0-9]+/g) || [];
+    const out = new Set(words);
+    for (let i = 0; i + 1 < words.length; i++) {
+        out.add(words[i] + " " + words[i + 1]);
+    }
+    return out;
+}
+
+function overlap(a, b) {
+    if (!a.size || !b.size) {
+        return 0;
+    }
+    let hit = 0;
+    a.forEach(piece => {
+        if (b.has(piece)) {
+            hit++;
+        }
+    });
+    return hit / a.size;
+}
+
+/* Which draft to show. Agreement first: the draft that says what the others say is
+   the one the model keeps arriving at, and the odd one out - the booking confirmation
+   among four answers about kettles - loses. Average probability breaks ties, because
+   on open questions the drafts agree on little and the model's own confidence is
+   then the only thing left to go on. It measures fluency, not truth: a confident
+   wrong answer still wins. */
+function pickDraft(drafts) {
+    if (drafts.length === 1) {
+        return drafts[0];
+    }
+    const bags = drafts.map(d => shingles(d.text));
+    drafts.forEach((draft, i) => {
+        let sum = 0;
+        for (let j = 0; j < drafts.length; j++) {
+            if (i !== j) {
+                sum += (overlap(bags[i], bags[j]) + overlap(bags[j], bags[i])) / 2;
+            }
+        }
+        draft.agreement = sum / (drafts.length - 1);
+    });
+    return drafts.slice().sort((x, y) =>
+        (y.agreement - x.agreement) || (y.mean - x.mean))[0];
+}
+
 function reply(userText) {
     if (!model || busy) {
         return;
@@ -981,14 +1403,12 @@ function reply(userText) {
     busy = true;
     el("send").disabled = true;
 
-    let bubble, logits, started;
+    let bubble, prompt, started;
     try {
         addTurn(true, userText);
         bubble = addTurn(false, "");
         bubble.div.classList.add("streaming");
-        const prompt = buildPrompt(userText, model.block);
-        model.reset();
-        logits = model.feed(prompt);
+        prompt = buildPrompt(userText, model.block);
         started = performance.now();
     } catch (e) {
         console.error(e);
@@ -1004,14 +1424,41 @@ function reply(userText) {
     const temp = parseFloat(el("temp").value);
     const topK = parseInt(el("topk").value, 10);
     const LIMIT = 300;
+    const wanted = Math.max(1, EFFORT[effort].drafts);
+    const drafts = [];
+    let logits = null;
     let text = "";
+    let logp = 0;
     let n = 0;
+
+    // Above one draft the writing is not worth watching: the drafts are discarded,
+    // and seeing four of them typed out and thrown away reads as the model changing
+    // its mind. It says what it is doing instead, and only the winner is shown.
+    const quiet = wanted > 1;
+
+    // Each draft starts the model again from the same prompt, which is what makes
+    // effort cost what it costs: eight drafts is eight passes over the model.
+    function startDraft() {
+        text = "";
+        logp = 0;
+        n = 0;
+        model.reset();
+        logits = model.feed(prompt);
+        if (quiet) {
+            showDrafting(bubble, drafts.length + 1, wanted);
+            el("stats").textContent = "draft " + (drafts.length + 1) + " of " + wanted + "…";
+        }
+    }
 
     function tick() {
         // setTimeout rather than requestAnimationFrame: rAF is throttled to a
         // crawl whenever the tab is not the visible one.
         try {
-            for (let i = 0; i < 16 && n < LIMIT; i++) {
+            // Sixteen letters a frame arrived in visible bursts on a model this size.
+            // A time budget instead: keep going until the frame is spent, so a slow
+            // model paints one letter at a time and a fast one still keeps up.
+            const until = performance.now() + 8;
+            while (n < LIMIT && performance.now() < until) {
                 const id = model.sample(logits, temp, topK);
                 const ch = model.vocab[id];
                 if (ch === END || ch === USER || ch === BOT || ch === START || ch === "\n") {
@@ -1019,7 +1466,10 @@ function reply(userText) {
                     break;
                 }
                 text += ch;
-                paint(bubble, text);
+                logp += Math.log(Math.max(model.lastProb, 1e-9));
+                if (!quiet) {
+                    paint(bubble, text);
+                }
                 logits = model.step(id);
                 model.pos++;
                 n++;
@@ -1031,19 +1481,37 @@ function reply(userText) {
         } catch (e) {
             console.error(e);
             paint(bubble, text + "  [error: " + e.message + "]");
-            finish(text, userText, bubble, started);
+            finish(text, userText, bubble, started, drafts.length + 1);
             return;
         }
         log.scrollTop = log.scrollHeight;
         layout();
         if (n < LIMIT) {
             setTimeout(tick, 0);
-        } else {
-            finish(text, userText, bubble, started);
+            return;
         }
+
+        drafts.push({ text, mean: text.length ? logp / text.length : -99, agreement: 0 });
+        if (drafts.length < wanted) {
+            startDraft();
+            setTimeout(tick, 0);
+            return;
+        }
+        const best = pickDraft(drafts);
+        lastDrafts = drafts;          // what the drafts were, for checking afterwards
+        bubble.work = null;           // paint() clears it; forget it so it can come back
+        paint(bubble, best.text);
+        if (quiet) {
+            arrive(bubble.div);
+        }
+        finish(best.text, userText, bubble, started, wanted);
     }
+    startDraft();
     setTimeout(tick, 0);
 }
+
+/* The drafts behind the last reply, kept so the choice can be inspected. */
+let lastDrafts = [];
 
 function say(text, bad) {
     const note = el("note");
@@ -1060,25 +1528,32 @@ function parseExport(text) {
     return { header: JSON.parse(lines[0]), weights: lines[1], scales: lines[2] };
 }
 
-/* "small_1.2.txt" -> "Small 1.2" */
-function shortName(file) {
-    const match = /^(.+)_(\d+(?:[.]\d+)*)[.]txt$/.exec(file);
-    if (!match) {
-        return file;
+/* "855k" -> "855K", "10m1" -> "10.1M", and anything else is not a size at all. */
+function prettySize(token) {
+    const thousands = /^(\d+)k$/.exec(token);
+    if (thousands) {
+        return thousands[1] + "K";
     }
-    // "medium_think" is a base name, not a word: read it as two.
-    const base = match[1].replace(/_/g, " ");
-    return base.charAt(0).toUpperCase() + base.slice(1) + " " + match[2];
+    const millions = /^(\d+)m(\d?)$/.exec(token);
+    return millions ? millions[1] + (millions[2] ? "." + millions[2] : "") + "M" : null;
+}
+
+/* "medium_think_855k_1.3.txt" -> "Medium think 855K". The version belongs on the
+   line beneath, with the download size - the name is for telling models apart. */
+function shortName(file) {
+    const parts = nameParts(file);
+    const words = parts.base.split("_");
+    const size = prettySize(words[words.length - 1]);
+    const family = (size ? words.slice(0, -1) : words).join(" ");
+    const name = family.charAt(0).toUpperCase() + family.slice(1);
+    return size ? name + " " + size : name + " " + parts.version.join(".");
 }
 
 function describe(choice) {
     showFacts([
-        ["model", choice.label],
         ["weights", model.nParams.toLocaleString()],
-        ["layers", model.nLayer],
-        ["width", model.C + " dim"],
-        ["context", model.block + " chars"],
-        ["precision", model.bits + "-bit"]
+        ["remembers", model.block + " characters at a time"],
+        ["download", choice.size]
     ]);
 }
 
@@ -1088,53 +1563,84 @@ function paintPicker() {
     }
 }
 
+/* True once the choice is the model in use, so a caller can fall back if not. */
 async function use(choice) {
-    if (loading || busy || choice.key === current) {
-        return;
+    if (choice.key === current) {
+        return true;
+    }
+    if (loading || busy) {
+        return false;
     }
     const button = el("pick-" + choice.key);
     if (button.classList.contains("off")) {
         say(button.title, true);
-        return;
+        return false;
     }
 
     loading = true;
     el("send").disabled = true;
     try {
         if (!downloaded[choice.key]) {
-            say("Loading " + choice.file + " (" + choice.size + ")...");
+            say("Loading " + choice.label + " (" + choice.size + ")…");
             const response = await fetch(FOLDER + choice.file);
             if (!response.ok) {
                 throw new Error("the server answered " + response.status);
             }
             downloaded[choice.key] = await response.text();
         }
-        say("Unpacking " + choice.label + "...");
+        say("Getting " + choice.label + " ready…");
         await new Promise(done => setTimeout(done, 0));  // let that message paint
         model = new Peitho(parseExport(downloaded[choice.key]));
         current = choice.key;
         chatTurns = [];
         describe(choice);
         paintPicker();
-        say(choice.label + " loaded from " + FOLDER + choice.file);
+        say(choice.label + " is ready.");
         setEmpty("Say something to begin.");
+        return true;
     } catch (e) {
         console.error(e);
-        say("Could not load " + choice.label + ": " + e.message, true);
+        // The details go to the console; what shows here is what a reader can act on.
+        const missing = /404|not found/i.test(e.message);
+        say(choice.label + " would not load. "
+            + (missing ? "That file is not in the models folder."
+                       : "The page could not reach it."), true);
+        return false;
     } finally {
         loading = false;
         el("send").disabled = !model;
     }
 }
 
-function addChoice(choice) {
+function addChoice(choice, where) {
     choices.push(choice);
     const button = document.createElement("button");
     button.id = "pick-" + choice.key;
-    button.innerHTML = choice.label + '<span class="size">' + choice.size + "</span>";
-    button.onclick = () => use(choice);
-    el("picker").append(button);
+    button.innerHTML = choice.label + '<span class="size">' + (choice.note || choice.size)
+        + "</span>";
+    button.onclick = () => {
+        el("more").hidden = true;
+        use(choice);
+    };
+    el(where).append(button);
     return button;
+}
+
+/* "medium_think_1.3.txt" -> { base: "medium_think", version: [1, 3] } */
+function nameParts(file) {
+    const match = /^(.+)_(\d+(?:[.]\d+)*)[.]txt$/.exec(file);
+    return match ? { base: match[1], version: match[2].split(".").map(Number) }
+                 : { base: file, version: [] };
+}
+
+function newerFirst(a, b) {
+    for (let i = 0; i < Math.max(a.version.length, b.version.length); i++) {
+        const d = (b.version[i] || 0) - (a.version[i] || 0);
+        if (d) {
+            return d;
+        }
+    }
+    return 0;
 }
 
 /* The placeholder is removed as soon as a turn is added, so it may not be there. */
@@ -1252,18 +1758,18 @@ async function loadGreeter(files) {
     }
 }
 
-/* Offer everything found, and open the smallest of the preferred base name - the
-   quickest to fetch and unpack. */
+/* Offer the newest of each strong model up front and the rest behind a button, and
+   open the strongest that loads - falling back to Small only if none of them do. */
 async function findModels() {
     if (typeof fetch !== "function") {
-        cannotLoad("This page reads its model from the " + FOLDER + " folder, and nothing "
-                   + "here can fetch a file.");
+        cannotLoad("This page reads its model from the " + FOLDER + " folder, and this "
+                   + "browser will not let it fetch files.");
         return;
     }
     if (location.protocol === "file:") {
-        cannotLoad("Opened from the disk, a page is not allowed to read the files next to "
-                   + "it, so the " + FOLDER + " folder is out of reach. Serve this folder "
-                   + "instead - py -m http.server, then open localhost:8000/peitho.html.");
+        cannotLoad("Opened straight from the disk, a page cannot read the files beside it, "
+                   + "so the " + FOLDER + " folder is out of reach. Serve the folder instead: "
+                   + "py -m http.server, then open localhost:8000/peitho.html.");
         return;
     }
 
@@ -1276,30 +1782,56 @@ async function findModels() {
         }
     }
     if (!found.length) {
-        cannotLoad("No exports found in " + FOLDER + ". Train one - it lands there as "
-                   + "small_1.0.txt and onwards.");
+        cannotLoad("Nothing in the " + FOLDER + " folder yet. Train a model and it will "
+                   + "appear here.");
         return;
     }
 
-    found.sort((a, b) => a.bytes - b.bytes);
     loadGreeter(found.map(entry => entry.file));
-    for (const entry of found) {
-        if (entry.file.startsWith(GREETER + "_")) {
-            continue;      /* it greets; it cannot answer */
-        }
-        addChoice({
+    const models = found
+        .filter(entry => !entry.file.startsWith(GREETER + "_"))   /* it greets; it cannot answer */
+        .map(entry => Object.assign({
             key: entry.file.replace(/[^A-Za-z0-9]/g, "_"),
             label: shortName(entry.file),
-            size: Math.round(entry.bytes / 1024) + " KB",
+            size: (entry.bytes / 1048576).toFixed(1) + " MB",
             file: entry.file,
             bytes: entry.bytes
-        });
+        }, nameParts(entry.file)))
+        .map(choice => Object.assign(choice, {
+            note: "v" + choice.version.join(".") + " · " + choice.size
+        }));
+
+    let main = [];
+    for (const base of STRONG) {
+        const versions = models.filter(c => c.base === base).sort(newerFirst);
+        if (versions.length) {
+            main.push(versions[0]);
+        }
     }
+    let rest = models.filter(c => !main.includes(c))
+                     .sort((a, b) => b.bytes - a.bytes || newerFirst(a, b));
+    if (!main.length) {      /* no strong model at all: offer what there is up front */
+        main = rest;
+        rest = [];
+    }
+    main.forEach(c => addChoice(c, "picker"));
+    rest.forEach(c => addChoice(c, "picker-more"));
+    el("more-open").hidden = !rest.length;
     paintPicker();
 
-    const preferred = choices.filter(c => c.file.startsWith(START_WITH + "_"));
-    const pool = preferred.length ? preferred : choices;
-    await use(pool[0]);   /* already smallest first */
+    for (const choice of main) {
+        if (await use(choice)) {
+            return;
+        }
+    }
+    const fallback = rest.filter(c => c.base === FALLBACK).sort(newerFirst)
+        .concat(rest.filter(c => c.base !== FALLBACK).sort((a, b) => a.bytes - b.bytes));
+    for (const choice of fallback) {
+        if (await use(choice)) {
+            say("Opened " + choice.label + " instead - " + main[0].label + " would not load.", true);
+            return;
+        }
+    }
 }
 
 function showFacts(rows) {
@@ -1406,11 +1938,32 @@ function init() {
         e.stopPropagation();
         const box = el("settings");
         box.hidden = !box.hidden;
+        el("more").hidden = true;
+        el("effort").hidden = true;
+    };
+    buildSlider();
+    el("dial").onclick = e => {
+        e.stopPropagation();
+        const box = el("effort");
+        box.hidden = !box.hidden;
+        el("settings").hidden = true;
+        el("more").hidden = true;
+    };
+    el("more-open").onclick = () => {
+        el("more").hidden = false;
+    };
+    el("more-close").onclick = () => {
+        el("more").hidden = true;
     };
     document.addEventListener("click", e => {
         const box = el("settings");
         if (!box.hidden && !box.contains(e.target) && e.target !== el("gear")) {
             box.hidden = true;
+            el("more").hidden = true;
+        }
+        const dial = el("effort");
+        if (!dial.hidden && !dial.contains(e.target) && e.target !== el("dial")) {
+            dial.hidden = true;
         }
     });
     el("temp").oninput = function () {
@@ -1446,7 +1999,7 @@ function init() {
     });
 
     el("send").disabled = true;
-    setEmpty("Loading the model...");
+    setEmpty("Getting ready…");
     findModels();
 }
 
